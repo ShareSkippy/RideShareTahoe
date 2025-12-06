@@ -1,0 +1,22 @@
+We miss you, {{userName}}! 🏔️
+
+It's been a bit since you joined RideShareTahoe. The mountains are calling, and the community has been busy!
+
+Here's what's happening:
+🚗 More drivers and passengers have joined
+📅 New trips posted every week
+❄️ Fresh snow is falling (hopefully!)
+
+Want to jump back in? The easiest way is to post a trip so travelers know you're heading up. That's how the adventure starts.
+
+Post a Trip Now: {{appUrl}}/post-ride
+
+See you on the road soon!
+
+— The RideShareTahoe Team
+
+---
+RideShareTahoe
+Community: {{appUrl}}/community
+Post a Trip: {{appUrl}}/post-ride
+Unsubscribe: {{appUrl}}/unsubscribe?email={{userEmail}}

@@ -1,0 +1,158 @@
+import type { TripBooking, ProfileType, RidePostType } from '@/app/community/types';
+import Image from 'next/image';
+
+interface TripBookingCardProps {
+  booking: TripBooking;
+  role: 'driver' | 'passenger';
+  // eslint-disable-next-line no-unused-vars
+  onUpdateStatus: (bookingId: string, status: TripBooking['status']) => Promise<void>;
+  // eslint-disable-next-line no-unused-vars
+  onMessage: (recipient: ProfileType, ride: RidePostType) => void;
+}
+
+export default function TripBookingCard({
+  booking,
+  role,
+  onUpdateStatus,
+  onMessage,
+}: Readonly<TripBookingCardProps>) {
+  const isDriver = role === 'driver';
+  const otherPerson = isDriver ? booking.passenger : booking.driver;
+  const ride = booking.ride;
+
+  if (!ride || !otherPerson) return null; // Should not happen with inner joins
+
+  const isRideActive = ride.status === 'active';
+  // Allow messaging if the ride is active.
+  const canMessage = isRideActive;
+
+  const statusColors = {
+    pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+    confirmed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+    cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+    completed: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+    invited: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
+  };
+
+  const departureDate = new Date(ride.departure_date);
+  const pickupTime = booking.pickup_time ? new Date(booking.pickup_time) : null;
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col sm:flex-row">
+        {/* Left: Date & Status */}
+        <div className="flex w-full flex-row items-center justify-between border-b border-gray-100 bg-gray-50 p-4 sm:w-48 sm:flex-col sm:border-b-0 sm:border-r dark:border-slate-800 dark:bg-slate-900/50">
+          <div className="text-center sm:mb-4">
+            <span className="block text-2xl font-bold text-gray-900 dark:text-white">
+              {departureDate.getDate()}
+            </span>
+            <span className="block text-sm font-medium text-gray-500 dark:text-gray-400">
+              {departureDate.toLocaleString('default', { month: 'short' })}
+            </span>
+            <span className="block text-xs text-gray-400">{ride.departure_time.slice(0, 5)}</span>
+          </div>
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[booking.status]}`}
+          >
+            {booking.status}
+          </span>
+        </div>
+
+        {/* Middle: Ride Details */}
+        <div className="flex-1 p-4">
+          <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
+            {ride.start_location} → {ride.end_location}
+          </h3>
+
+          <div className="mb-4 grid gap-4 text-sm text-gray-600 dark:text-gray-300 sm:grid-cols-2">
+            <div>
+              <p className="font-medium text-gray-900 dark:text-white">Meeting Details</p>
+              <p>{booking.pickup_location}</p>
+              <p>
+                {pickupTime
+                  ? pickupTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+                  : 'TBD'}
+              </p>
+            </div>
+            <div>
+              <p className="font-medium text-gray-900 dark:text-white">
+                {isDriver ? 'Passenger' : 'Driver'}
+              </p>
+              <div className="mt-1 flex items-center space-x-2">
+                {otherPerson.profile_photo_url ? (
+                  <Image
+                    src={otherPerson.profile_photo_url}
+                    alt={otherPerson.first_name || 'User'}
+                    width={24}
+                    height={24}
+                    className="rounded-full"
+                  />
+                ) : (
+                  <div className="h-6 w-6 rounded-full bg-gray-200 dark:bg-gray-700" />
+                )}
+                <span>
+                  {otherPerson.first_name} {otherPerson.last_name}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-wrap gap-2">
+            {/* Message Button - Available for both roles */}
+            <button
+              onClick={() => onMessage(otherPerson, ride)}
+              disabled={!canMessage}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-700 dark:text-gray-300 dark:hover:bg-slate-800"
+              title={canMessage ? 'Message' : 'Messaging is disabled for inactive trips'}
+            >
+              Message
+            </button>
+
+            {/* Driver Actions for Pending Requests */}
+            {isDriver && booking.status === 'pending' && (
+              <>
+                <button
+                  className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                  onClick={() => onUpdateStatus(booking.id, 'confirmed')}
+                >
+                  Accept
+                </button>
+                <button
+                  className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+                  onClick={() => onUpdateStatus(booking.id, 'cancelled')}
+                >
+                  Decline
+                </button>
+              </>
+            )}
+
+            {/* Passenger Actions for Invitations */}
+            {!isDriver && booking.status === 'invited' && (
+              <>
+                <button
+                  className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                  onClick={() => onUpdateStatus(booking.id, 'confirmed')}
+                >
+                  Accept Invitation
+                </button>
+                <button
+                  className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+                  onClick={() => onUpdateStatus(booking.id, 'cancelled')}
+                >
+                  Decline
+                </button>
+              </>
+            )}
+
+            {isDriver && booking.status === 'invited' && (
+              <span className="self-center text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                Invitation Sent
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

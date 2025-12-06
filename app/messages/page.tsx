@@ -1,0 +1,475 @@
+'use client';
+
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/libs/supabase';
+import { useProtectedRoute } from '@/hooks/useProtectedRoute';
+
+import ReportModal from '@/components/ReportModal';
+
+interface Participant {
+  id: string;
+  first_name: string;
+  last_name: string;
+  profile_photo_url?: string | null;
+}
+
+interface Ride {
+  id: string;
+  title?: string | null;
+  start_location: string;
+  end_location: string;
+  departure_date: string;
+}
+
+interface Conversation {
+  id: string;
+  participant1_id: string;
+  participant2_id: string;
+  participant1?: Participant | null;
+  participant2?: Participant | null;
+  ride?: Ride | null;
+  last_message_at?: string | null;
+}
+
+interface Message {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  content: string;
+  created_at: string;
+  is_read?: boolean;
+}
+
+/**
+ * Displays the authenticated user's messaging dashboard, including conversations and the thread view.
+ */
+export default function MessagesPage() {
+  const { user, isLoading: authLoading } = useProtectedRoute();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<null | string>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messageInput, setMessageInput] = useState('');
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
+  const currentConversation = useMemo(() => {
+    return conversations.find((conversation) => conversation.id === selectedConversationId) ?? null;
+  }, [conversations, selectedConversationId]);
+
+  const otherParticipant = useMemo<Participant | null>(() => {
+    if (!currentConversation || !user) {
+      return null;
+    }
+
+    if (currentConversation.participant1_id === user.id) {
+      return currentConversation.participant2 ?? null;
+    }
+
+    return currentConversation.participant1 ?? null;
+  }, [currentConversation, user]);
+
+  const otherParticipantName = useMemo(() => {
+    if (!otherParticipant) {
+      return 'Conversation';
+    }
+    return `${otherParticipant.first_name} ${otherParticipant.last_name}`;
+  }, [otherParticipant]);
+
+  const loadConversations = useCallback(async () => {
+    if (!user) {
+      return;
+    }
+
+    setConversationsLoading(true);
+    setFetchError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select(
+          `
+          *,
+          participant1:profiles!conversations_participant1_id_fkey(id, first_name, last_name, profile_photo_url),
+          participant2:profiles!conversations_participant2_id_fkey(id, first_name, last_name, profile_photo_url),
+          ride:rides(id, title, start_location, end_location, departure_date)
+        `
+        )
+        .or(`participant1_id.eq.${user.id},participant2_id.eq.${user.id}`)
+        .order('last_message_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      // Cast data to Conversation[] because Supabase types might not match exactly with nested joins automatically
+      const safeData = (Array.isArray(data) ? data : []) as unknown as Conversation[];
+      setConversations(safeData);
+      setSelectedConversationId((previous) => previous ?? safeData[0]?.id ?? null);
+    } catch (error) {
+      console.error('Unable to load conversations', error);
+      setFetchError('Unable to load conversations right now.');
+    } finally {
+      setConversationsLoading(false);
+    }
+  }, [user]);
+
+  const loadMessages = useCallback(async () => {
+    if (!currentConversation || !user) {
+      setMessages([]);
+      return;
+    }
+
+    const otherId =
+      currentConversation.participant1_id === user.id
+        ? currentConversation.participant2_id
+        : currentConversation.participant1_id;
+
+    if (!otherId) {
+      setMessages([]);
+      return;
+    }
+
+    setMessagesLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .or(
+          `and(sender_id.eq.${user.id},recipient_id.eq.${otherId}),and(sender_id.eq.${otherId},recipient_id.eq.${user.id})`
+        )
+        .eq('conversation_id', currentConversation.id) // Ensure we only get messages for this conversation
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      setMessages(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Unable to load messages', error);
+      setMessages([]);
+    } finally {
+      setMessagesLoading(false);
+    }
+  }, [currentConversation, user]);
+
+  useEffect(() => {
+    if (!user || authLoading) {
+      return;
+    }
+    loadConversations();
+  }, [authLoading, loadConversations, user]);
+
+  useEffect(() => {
+    loadMessages();
+  }, [loadMessages]);
+
+  useEffect(() => {
+    if (!user || authLoading) return;
+
+    const markAllMessagesRead = async () => {
+      const { error } = await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('recipient_id', user.id)
+        .eq('is_read', false);
+
+      if (error) {
+        console.error('Error marking all messages as read:', error);
+      }
+    };
+
+    markAllMessagesRead();
+  }, [authLoading, user]);
+
+  const markMessagesAsRead = useCallback(async () => {
+    if (!currentConversation || !user) {
+      return;
+    }
+
+    const unreadMessages = messages.filter((m) => !m.is_read && m.sender_id !== user.id);
+
+    if (unreadMessages.length === 0) {
+      return;
+    }
+
+    // Optimistically mark as read locally to prevent loop
+    setMessages((prev) => prev.map((m) => (m.sender_id === user.id ? m : { ...m, is_read: true })));
+
+    const { error } = await supabase
+      .from('messages')
+      .update({ is_read: true })
+      .eq('conversation_id', currentConversation.id)
+      .eq('recipient_id', user.id)
+      .eq('is_read', false);
+
+    if (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  }, [currentConversation, user, messages]);
+
+  useEffect(() => {
+    if (user && messages.some((m) => !m.is_read && m.sender_id !== user.id)) {
+      markMessagesAsRead();
+    }
+  }, [markMessagesAsRead, messages, user]);
+
+  useEffect(() => {
+    if (!currentConversation) {
+      return;
+    }
+
+    const channel = supabase.channel('messages-page');
+    const listener = channel.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'messages' },
+      () => {
+        loadMessages();
+      }
+    );
+    const subscription = listener.subscribe();
+
+    return () => {
+      subscription?.unsubscribe?.();
+      supabase.removeChannel(channel);
+    };
+  }, [currentConversation, loadMessages]);
+
+  const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!messageInput.trim() || !user || !currentConversation) {
+      return;
+    }
+
+    const content = messageInput.trim();
+    const tempId = `local-${Date.now()}`;
+
+    // Optimistic update
+    setMessages((existing) => [
+      ...existing,
+      {
+        id: tempId,
+        sender_id: user.id,
+        recipient_id: otherParticipant?.id ?? '',
+        content: content,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    setMessageInput('');
+
+    try {
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient_id: otherParticipant?.id,
+          content: content,
+          ride_post_id: currentConversation.ride?.id, // Pass ride_id to associate message
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+
+      // Refresh messages to get the real ID and any other updates
+      loadMessages();
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Revert optimistic update or show error
+      // For now, we just log it. In a real app, we'd show a toast or retry.
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+        <div className="space-y-3 text-center">
+          <div className="mx-auto h-10 w-10 rounded-full border-4 border-blue-600 border-b-transparent animate-spin" />
+          <p className="text-lg font-semibold text-gray-700 dark:text-gray-300">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen w-full bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 transition-colors duration-300">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 sm:px-6 lg:flex-row lg:gap-8 lg:px-8">
+        <aside className="w-full space-y-4 rounded-3xl bg-white/80 dark:bg-slate-900/80 p-5 shadow-xl lg:w-80 border border-white/20 dark:border-slate-800">
+          <header>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Conversations</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {(() => {
+                if (conversations.length === 0 && !conversationsLoading) {
+                  return 'Start a conversation to stay in touch.';
+                }
+                const pluralSuffix = conversations.length === 1 ? '' : 's';
+                return `${conversations.length} conversation${pluralSuffix}`;
+              })()}
+            </p>
+          </header>
+
+          {conversationsLoading && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">Loading conversations...</div>
+          )}
+
+          {fetchError && <div className="text-sm text-red-600 dark:text-red-400">{fetchError}</div>}
+
+          {!conversationsLoading && conversations.length === 0 && (
+            <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+              No conversations yet
+            </p>
+          )}
+
+          <div className="flex flex-col gap-3">
+            {conversations.map((conversation) => {
+              const other =
+                conversation.participant1_id === user?.id
+                  ? conversation.participant2
+                  : conversation.participant1;
+
+              return (
+                <button
+                  key={conversation.id}
+                  type="button"
+                  onClick={() => setSelectedConversationId(conversation.id)}
+                  className={`text-left rounded-2xl border px-4 py-3 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
+                    ${
+                      conversation.id === selectedConversationId
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-500'
+                        : 'border-transparent bg-white dark:bg-slate-800 hover:border-blue-100 dark:hover:border-slate-700 hover:bg-blue-50/60 dark:hover:bg-slate-800/80'
+                    }`}
+                >
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    {other ? `${other.first_name} ${other.last_name}` : 'Conversation'}
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {conversation.ride?.title ||
+                      (conversation.ride
+                        ? `${conversation.ride.start_location} to ${conversation.ride.end_location}`
+                        : 'Community chat')}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <section className="flex-1 space-y-6 rounded-3xl bg-white/80 dark:bg-slate-900/80 p-6 shadow-xl border border-white/20 dark:border-slate-800">
+          {currentConversation ? (
+            <>
+              <header className="flex flex-col gap-1 border-b border-gray-100 dark:border-slate-800 pb-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.3em] text-blue-600 dark:text-blue-400">
+                      Conversation
+                    </p>
+                    <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                      {otherParticipantName}
+                    </h1>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {currentConversation.ride?.title ||
+                        (currentConversation.ride
+                          ? `${currentConversation.ride.start_location} to ${currentConversation.ride.end_location}`
+                          : 'Closed-loop message thread')}
+                    </p>
+                  </div>
+                  {otherParticipant && (
+                    <div className="flex gap-2">
+                      <a
+                        href={`/profile/${otherParticipant.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                      >
+                        View Profile
+                      </a>
+                      <button
+                        onClick={() => setIsReportModalOpen(true)}
+                        className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:underline"
+                      >
+                        Report
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </header>
+
+              <div className="flex flex-col gap-4" aria-live="polite">
+                {messagesLoading && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Loading messages…</p>
+                )}
+                {!messagesLoading && messages.length === 0 && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No messages yet</p>
+                )}
+
+                <div className="flex max-h-[360px] flex-col gap-3 overflow-y-auto">
+                  {messages.map((message) => {
+                    const isCurrentUser = message.sender_id === user?.id;
+                    return (
+                      <div
+                        key={message.id}
+                        className={`message-bubble max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm
+                          ${
+                            isCurrentUser
+                              ? 'self-end bg-blue-600 text-white'
+                              : 'self-start bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100'
+                          }`}
+                      >
+                        <p className="wrap-break-words">{message.content}</p>
+                        <p className="mt-2 text-xs text-white/70 dark:text-gray-400">
+                          {new Date(message.created_at).toLocaleTimeString([], {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <form className="mt-4 flex gap-3" onSubmit={handleSendMessage}>
+                <textarea
+                  rows={2}
+                  className="flex-1 rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                  placeholder="Type your message..."
+                  value={messageInput}
+                  onChange={(event) => setMessageInput(event.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={!messageInput.trim()}
+                >
+                  Send
+                </button>
+              </form>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center space-y-3 py-12">
+              <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                Select a conversation
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Pick a conversation from the list to open the thread.
+              </p>
+            </div>
+          )}
+        </section>
+
+        {otherParticipant && (
+          <ReportModal
+            isOpen={isReportModalOpen}
+            onClose={() => setIsReportModalOpen(false)}
+            reportedUserId={otherParticipant.id}
+            reportedUserName={`${otherParticipant.first_name} ${otherParticipant.last_name}`}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

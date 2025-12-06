@@ -1,0 +1,45 @@
+import '@testing-library/jest-dom';
+import { jest } from '@jest/globals';
+
+// Mock the Next.js Image component
+// This prevents errors related to image source validation in the JSDOM environment.
+globalThis.console = {
+  ...console,
+  // console.log, console.warn, and console.error are mocked to be silent
+  log: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  info: jest.fn(),
+  debug: jest.fn(),
+};
+
+jest.mock('next/image', () => ({
+  __esModule: true,
+  default: ({ src, alt, width, height = 'intrinsic', ...rest }) => {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt={alt} width={width} height={height} {...rest} />;
+  },
+}));
+
+if (globalThis.window != undefined) {
+  globalThis.globalThis.scrollTo = jest.fn();
+}
+
+process.env.RESEND_API_KEY = process.env.RESEND_API_KEY || 'DUMMY_RESEND_KEY';
+process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'DUMMY_SUPABASE_URL';
+process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'DUMMY_SERVICE_KEY';
+process.env.NEXT_PUBLIC_SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy-supabase-url.com';
+process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'dummy-publishable-key';
+
+globalThis.ResizeObserver = jest.fn().mockImplementation(() => ({
+  observe: jest.fn(),
+  unobserve: jest.fn(),
+  disconnect: jest.fn(),
+}));
+
+if (process.env.RUN_INTEGRATION_TESTS === 'true') {
+  // Integration tests hit Supabase and may take longer than the default 5s per test.
+  jest.setTimeout(30_000);
+}

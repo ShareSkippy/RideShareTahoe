@@ -1,0 +1,31 @@
+Trip Confirmed on RideShareTahoe
+
+Hi {{userName}}!
+
+Great news! Your trip has been confirmed on RideShareTahoe.
+
+Trip Details:
+- Title: {{meetingTitle}}
+- Date: {{meetingDate}}
+- Time: {{meetingTime}}
+- Location: {{meetingLocation}}
+- With: {{otherParticipantName}}
+
+View Trip Details: {{meetingUrl}}
+
+Trip Tips:
+- Be on time for pick-up
+- Confirm details 24h in advance
+- Buckle up and enjoy the ride!
+- Share gas costs as agreed
+
+If you need to make any changes, please contact {{otherParticipantName}} directly through the RideShareTahoe messaging system.
+
+Happy travels!
+The RideShareTahoe Team 🚗
+
+---
+RideShareTahoe is a community platform connecting the Bay Area to Lake Tahoe.
+
+You received this email because you have a trip scheduled on RideShareTahoe. 
+You can manage your notification preferences in your account settings or unsubscribe here: {{unsubscribeUrl}}

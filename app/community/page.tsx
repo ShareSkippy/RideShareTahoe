@@ -1,0 +1,191 @@
+'use client';
+
+import { useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createClient } from '@/libs/supabase/client';
+import MessageModal from '@/components/MessageModal';
+import { useProtectedRoute } from '@/hooks/useProtectedRoute';
+import { useCommunityRides } from '@/app/community/hooks/useCommunityRides';
+import { useNetworkInfo } from '@/app/community/hooks/useNetworkInfo';
+import { useMessageModal } from '@/app/community/hooks/useMessageModal';
+import { useRideActions } from '@/app/community/hooks/useRideActions';
+import { RidesTab } from '@/app/community/components/FindRidesTab';
+import FindPassengersTab from '@/app/community/components/FindPassengersTab';
+import { MyPostsTab } from '@/app/community/components/MyPostsTab';
+import MyTripsView from '@/components/trips/MyTripsView';
+
+/**
+ * The main community page.
+ * Displays tabs for finding rides, drivers, and managing user's own posts and trips.
+ * Handles initial data fetching and network status monitoring.
+ */
+export default function CommunityPage() {
+  const { user, isLoading: authLoading } = useProtectedRoute();
+  const supabase = useMemo(() => createClient(), []);
+  const { dataLoading, myRides, setMyRides, fetchRidesData } = useCommunityRides(supabase, user);
+  const { networkInfo, detectNetwork } = useNetworkInfo();
+  const { messageModal, openMessageModal, closeMessageModal } = useMessageModal();
+  const { deletePost, deletingPost } = useRideActions(supabase, user, setMyRides);
+
+  const searchParams = useSearchParams();
+  const initialView = searchParams.get('view');
+  const [activeTab, setActiveTab] = useState<string>(
+    initialView === 'my-posts' ? 'my-posts' : 'driver-rides'
+  );
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  useEffect(() => {
+    const view = searchParams.get('view');
+    if (view === 'my-posts') {
+      setActiveTab('my-posts');
+    }
+  }, [searchParams]);
+
+  const refreshData = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchRidesData();
+      detectNetwork();
+      // Note: PassengersSection and DriversTab fetch their own data,
+      // so we might want to trigger their refresh too if we had a global refresh context,
+      // but for now this refreshes MyRides and checks network.
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [detectNetwork, fetchRidesData]);
+
+  useEffect(() => {
+    detectNetwork();
+  }, [detectNetwork]);
+
+  if (authLoading || dataLoading) {
+    return (
+      <div className="min-h-screen bg-linear-to-br from-slate-50 via-blue-50 to-sky-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-linear-to-br from-slate-50 via-blue-50 to-sky-100 flex items-center justify-center">
+        <p className="text-xl text-red-500">Authentication failed. Please log in.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-blue-50 to-sky-100 dark:from-slate-950 dark:via-slate-900 dark:to-blue-950 transition-colors duration-300">
+      <div className="max-w-7xl mx-auto py-4 sm:py-8 px-3 sm:px-4">
+        {/* Header */}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center">
+            <div>
+              <h1 className="text-2xl sm:text-4xl font-bold bg-linear-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent mb-2">
+                🚗 Community Rides
+              </h1>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
+                Find a ride or offer one to your neighbors
+              </p>
+            </div>
+            <div className="mt-4 sm:mt-0 flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-2">
+              <button
+                onClick={refreshData}
+                disabled={refreshing}
+                className="bg-white/80 hover:bg-white dark:bg-slate-800/80 dark:hover:bg-slate-800 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg transition-colors text-sm flex items-center space-x-2 disabled:opacity-50 shadow-sm backdrop-blur-sm"
+              >
+                <span>{refreshing ? '🔄' : '↻'}</span>
+                <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+              </button>
+              {networkInfo && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 bg-white/50 dark:bg-slate-800/50 px-2 py-1 rounded-sm backdrop-blur-sm">
+                  {networkInfo.connectionType} • {networkInfo.online ? 'Online' : 'Offline'}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="mb-6 sm:mb-8">
+          <div className="grid grid-cols-1 sm:flex sm:space-x-1 bg-white/60 dark:bg-slate-900/60 rounded-xl p-2 sm:p-1 shadow-md border border-white/20 dark:border-slate-700/30 gap-2 sm:gap-0 backdrop-blur-md">
+            {[
+              { id: 'driver-rides', label: 'Find a Driver', icon: '🚗', shortLabel: 'Drivers' },
+              {
+                id: 'passenger-rides',
+                label: 'Find Passengers',
+                icon: '👋',
+                shortLabel: 'Passengers',
+              },
+              {
+                id: 'my-posts',
+                label: 'My Posts',
+                icon: '📝',
+                shortLabel: 'My Posts',
+              },
+              {
+                id: 'my-trips',
+                label: 'My Trips',
+                icon: '✈️',
+                shortLabel: 'My Trips',
+              },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full sm:flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 text-sm sm:text-base ${
+                  activeTab === tab.id
+                    ? 'bg-linear-to-r from-blue-500 to-cyan-400 text-white shadow-md'
+                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/50'
+                }`}
+              >
+                <span className="mr-2">{tab.icon}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.shortLabel}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Rides Section - Shows all ride posts */}
+        {activeTab === 'driver-rides' && (
+          <RidesTab user={user} supabase={supabase} openMessageModal={openMessageModal} />
+        )}
+
+        {activeTab === 'passenger-rides' && (
+          <FindPassengersTab user={user} supabase={supabase} openMessageModal={openMessageModal} />
+        )}
+
+        {activeTab === 'my-posts' && (
+          <MyPostsTab
+            myRides={myRides}
+            user={user}
+            openMessageModal={openMessageModal}
+            deletePost={deletePost}
+            deletingPost={deletingPost}
+          />
+        )}
+
+        {activeTab === 'my-trips' && (
+          <MyTripsView user={user} supabase={supabase} onMessage={openMessageModal} />
+        )}
+
+        <MessageModal
+          isOpen={messageModal.isOpen}
+          onClose={closeMessageModal}
+          recipient={
+            messageModal.recipient
+              ? {
+                  id: messageModal.recipient.id,
+                  first_name: messageModal.recipient.first_name ?? 'User',
+                }
+              : null
+          }
+          ridePost={messageModal.ridePost ?? null}
+        />
+      </div>
+    </div>
+  );
+}

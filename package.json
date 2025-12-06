@@ -1,0 +1,120 @@
+{
+  "name": "ridetahoe",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11.6.2",
+  "engines": {
+    "node": "^22.11.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "postbuild": "next-sitemap",
+    "start": "next start",
+    "lint:js": "eslint .",
+    "lint:css": "stylelint \"**/*.css\" --ignore-path .gitignore",
+    "lint": "npm run lint:js && npm run lint:css",
+    "lint:fix": "npm run lint:js --fix && npm run lint:css --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "cross-env RUN_INTEGRATION_TESTS=true jest --testMatch \"**/*.integration.test.ts\"",
+    "test:ci": "jest --ci --coverage --maxWorkers=2",
+    "analyze": "ANALYZE=true next build",
+    "prepare": "husky",
+    "format": "prettier",
+    "format:write": "prettier --write"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{test,spec}.{js,jsx,ts,tsx}": [
+      "jest --bail --findRelatedTests"
+    ],
+    "*.css": [
+      "stylelint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "dependencies": {
+    "@headlessui/react": "^2.1.0",
+    "@hookform/resolvers": "^5.2.2",
+    "@opennextjs/cloudflare": "^1.14.3",
+    "@supabase/ssr": "^0.8.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "@tailwindcss/postcss": "^4.1.16",
+    "@tanstack/react-query": "^5.86.0",
+    "crisp-sdk-web": "^1.0.22",
+    "dotenv": "^17.2.3",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jest": "^29.0.1",
+    "jsdom": "^27.2.0",
+    "next": "^16.0.6",
+    "next-themes": "^0.4.6",
+    "nextjs-toploader": "^3.9.17",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-hook-form": "^7.68.0",
+    "react-hot-toast": "^2.4.1",
+    "react-tooltip": "^5.26.3",
+    "resend": "^4.0.1",
+    "typescript": "^5.9.3",
+    "zod": "^4.1.8"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/preset-env": "^7.28.5",
+    "@babel/preset-react": "^7.28.5",
+    "@babel/preset-typescript": "^7.28.5",
+    "@eslint/js": "^9.38.0",
+    "@eslint/json": "^0.13.2",
+    "@eslint/markdown": "^7.5.0",
+    "@jest/globals": "^30.2.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/jest": "^30.0.0",
+    "@types/react": "19.1.12",
+    "cross-env": "^10.1.0",
+    "daisyui": "^5.3.10",
+    "eslint": "^9.39.1",
+    "eslint-config-next": "^16.0.3",
+    "globals": "^16.4.0",
+    "husky": "^9.1.7",
+    "jest": "^30.2.0",
+    "jest-environment-jsdom": "^30.2.0",
+    "jiti": "^2.6.1",
+    "knip": "^5.71.0",
+    "lint-staged": "^16.2.6",
+    "next-sitemap": "^4.2.3",
+    "postcss": "^8.4.38",
+    "prettier": "^3.6.2",
+    "stylelint": "^16.25.0",
+    "stylelint-config-standard": "^39.0.1",
+    "stylelint-config-tailwindcss": "^1.0.0",
+    "supabase": "^2.51.0",
+    "tailwindcss": "^4.1.16",
+    "wrangler": "^4.53.0"
+  },
+  "babel": {
+    "presets": [
+      "@babel/preset-env",
+      "@babel/preset-typescript",
+      [
+        "@babel/preset-react",
+        {
+          "runtime": "automatic"
+        }
+      ]
+    ]
+  }
+}

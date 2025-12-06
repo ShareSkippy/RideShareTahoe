@@ -1,0 +1,34 @@
+Welcome to RideShareTahoe!
+
+Connecting drivers & passengers—one trip at a time.
+
+Hey {{userName}}!
+
+Welcome to RideShareTahoe, the community for Tahoe travelers!
+
+Step 1: Post a trip
+Driving to Tahoe or need a ride? Post your trip details to find the perfect travel companion. It's quick, easy, and helps share the cost of travel.
+Post a Trip: {{appUrl}}/post-ride
+
+Step 2: Find a ride
+Browse available rides and connect with drivers or passengers. Don't wait—secure your seat or fill your car today!
+Browse Rides: {{appUrl}}/community
+
+What you can do on RideShareTahoe:
+- Plan Trips: Schedule rides in advance.
+- Message Securely: Chat with travelers without sharing personal info.
+- Share Costs: Save money on gas and parking.
+- Build Trust: Leave reviews after your trip.
+
+Pro tip: Members with verified profiles and photos get the most responses. Complete your profile to start your journey!
+
+If you ever need help, our team's just a message away. 🏔️
+
+See you on the slopes,
+The RideShareTahoe Team 🏂
+
+FAQ: {{appUrl}}/faq
+Safety: {{appUrl}}/safety
+Unsubscribe: {{unsubscribeUrl}}
+
+RideShareTahoe is a community platform connecting the Bay Area to Lake Tahoe.

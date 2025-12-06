@@ -1,0 +1,21 @@
+Hello {{first_name}}!
+
+We hope you're ready for your next adventure! We wanted to reach out with some exciting updates from the RideShareTahoe community.
+
+📢 Important Announcement
+[Your announcement content will go here]
+
+Thank you for being part of our growing community. Together, we're making travel to Tahoe more affordable, sustainable, and fun.
+
+If you have any questions or need help with anything, don't hesitate to reach out to our support team.
+
+Visit RideShareTahoe: https://ridesharetahoe.com
+
+Best regards,
+The RideShareTahoe Team
+
+Website: https://ridesharetahoe.com
+Support: support@ridesharetahoe.com
+
+You're receiving this email because you're a member of RideShareTahoe.
+If you'd like to unsubscribe from these announcements, you can update your email preferences in your account settings.

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ready to hit the road? - RideShareTahoe</title>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
+          sans-serif;
+        line-height: 1.6;
+        color: #374151;
+        background-color: #f9fafb;
+        margin: 0;
+        padding: 0;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        background-color: #0369a1;
+        background-image: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+        color: white;
+        padding: 40px 30px;
+        text-align: center;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 700;
+      }
+      .header p {
+        margin: 10px 0 0 0;
+        font-size: 16px;
+        opacity: 0.9;
+      }
+      .content {
+        padding: 40px 30px;
+      }
+      .greeting {
+        font-size: 18px;
+        margin-bottom: 20px;
+        color: #1f2937;
+      }
+      .features {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 25px 0;
+      }
+      .features h3 {
+        margin: 0 0 15px 0;
+        color: #0284c7;
+        font-size: 16px;
+      }
+      .feature-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+        font-size: 15px;
+      }
+      .feature-icon {
+        margin-right: 12px;
+        font-size: 18px;
+        width: 20px;
+      }
+      .cta-button {
+        display: inline-block;
+        background-color: #0369a1;
+        background-image: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+        color: white !important;
+        text-decoration: none;
+        padding: 14px 28px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 16px;
+        margin: 20px 0;
+        transition: all 0.2s ease;
+      }
+      .cta-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+      }
+      .highlight {
+        background-color: #f0f9ff;
+        border: 1px solid #0ea5e9;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 25px 0;
+      }
+      .highlight h4 {
+        margin-top: 0;
+        color: #0369a1;
+        font-size: 16px;
+      }
+      .highlight p {
+        margin-bottom: 0;
+        color: #0369a1;
+      }
+      .footer {
+        background-color: #f8fafc;
+        padding: 30px;
+        text-align: center;
+        border-top: 1px solid #e5e7eb;
+      }
+      .footer p {
+        margin: 0;
+        color: #6b7280;
+        font-size: 14px;
+      }
+      .footer a {
+        color: #0284c7;
+        text-decoration: none;
+      }
+      .footer a:hover {
+        text-decoration: underline;
+      }
+      @media (max-width: 600px) {
+        .container {
+          margin: 0;
+          border-radius: 0;
+        }
+        .header,
+        .content,
+        .footer {
+          padding: 20px;
+        }
+        .cta-button {
+          display: block;
+          text-align: center;
+          margin: 10px 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🏔️ Ready to hit the road?</h1>
+        <p>Drivers and passengers are looking to connect!</p>
+      </div>
+
+      <div class="content">
+        <div class="greeting">
+          <p>Hi {{userName}}!</p>
+          <p>It's been a couple days since you joined RideShareTahoe — welcome again! 🎉</p>
+          <p>
+            Right now, travelers are planning their next trip to the mountains. To get started, all
+            you need to do is post your trip:
+          </p>
+        </div>
+
+        <div class="features">
+          <h3>What you can do:</h3>
+
+          <div class="feature-item">
+            <span class="feature-icon">🚗</span>
+            <span>Offer a ride and share gas costs</span>
+          </div>
+
+          <div class="feature-item">
+            <span class="feature-icon">🎒</span>
+            <span>Find a ride and relax on the way up</span>
+          </div>
+
+          <div class="feature-item">
+            <span class="feature-icon">❄️</span>
+            <span>Meet fellow snow enthusiasts</span>
+          </div>
+        </div>
+
+        <div style="text-align: center">
+          <a href="{{appUrl}}/post-ride" class="cta-button">Post a Trip</a>
+        </div>
+
+        <div class="highlight">
+          <h4>💡 Quick & Easy</h4>
+          <p>
+            It only takes a minute to post your trip details. Whether you're driving or riding,
+            connecting with the community makes the journey better.
+          </p>
+        </div>
+
+        <p>See you on the slopes!</p>
+      </div>
+
+      <div class="footer">
+        <p>— The RideShareTahoe Team 🏂</p>
+        <p style="margin-top: 20px; font-size: 12px">
+          <a href="{{appUrl}}/post-ride">Post a trip</a> |
+          <a href="{{appUrl}}/community">Browse rides</a> |
+          <a href="{{unsubscribeUrl}}">Unsubscribe</a>
+        </p>
+        <p style="margin-top: 15px; font-size: 11px; color: #9ca3af">
+          RideShareTahoe is a community platform connecting the Bay Area to Lake Tahoe.
+        </p>
+        <p style="margin-top: 10px; font-size: 11px; color: #9ca3af">
+          You received this follow-up email as a member of RideShareTahoe. We're here to help you
+          get the most out of our community! If you no longer wish to receive follow-up emails, you
+          can
+          <a href="{{unsubscribeUrl}}" style="color: #0284c7">unsubscribe here</a>.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>
