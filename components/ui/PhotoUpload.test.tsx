@@ -157,6 +157,17 @@ describe('PhotoUpload', () => {
   });
 
   it('handles successful photo upload', async () => {
+    // eslint-disable-next-line no-unused-vars
+    let resolveUpload: (_: unknown) => void;
+
+    // Create a promise that we can resolve manually
+    const uploadPromise = new Promise((resolve) => {
+      resolveUpload = resolve;
+    });
+
+    // Mock upload to return our controlled promise
+    mockUpload.mockReturnValue(uploadPromise);
+
     const { container } = render(
       <PhotoUpload
         id="test-id"
@@ -169,24 +180,32 @@ describe('PhotoUpload', () => {
     const fileInput = container.querySelector('input[type="file"]');
     expect(fileInput).not.toBeNull();
 
-    const mockFile = new File(['mock-image-data'], 'test.png', { type: 'image/png' }); // Simulate file selection
+    const mockFile = new File(['mock-image-data'], 'test.png', { type: 'image/png' });
 
+    // Trigger the upload
     await act(async () => {
       fireEvent.change(fileInput!, { target: { files: [mockFile] } });
-    }); // Check uploading state
+    });
 
-    expect(screen.getByRole('button', { name: 'Uploading...' })).toBeDisabled(); // Wait for all async operations to complete
+    // Check uploading state - the upload is now pending our manual resolve
+    expect(screen.getByRole('button', { name: 'Uploading...' })).toBeDisabled();
 
-    expect(await screen.findByRole('button', { name: 'Change Photo' })).toBeInTheDocument(); // Verify mocks were called
+    // Resolve the upload
+    await act(async () => {
+      resolveUpload({ error: null, data: { path: 'test-user-id/12345.jpg' } });
+    });
+
+    // Verify final state
+    expect(await screen.findByRole('button', { name: 'Change Photo' })).toBeInTheDocument();
 
     expect(mockGetUser).toHaveBeenCalledTimes(1);
     expect(mockUpload).toHaveBeenCalledTimes(1);
-    expect(mockGetPublicUrl).toHaveBeenCalledTimes(1); // Verify callback
+    expect(mockGetPublicUrl).toHaveBeenCalledTimes(1);
 
     const newUrl = 'https://supabase.mock/public/test-bucket/test-user-id/12345.jpg';
-    expect(mockOnPhotoUploaded).toHaveBeenCalledWith(newUrl); // Verify UI update
+    expect(mockOnPhotoUploaded).toHaveBeenCalledWith(newUrl);
 
-    const img = screen.getByAltText('Profile');
+    const img = await screen.findByAltText('Profile');
     expect(img).toBeInTheDocument();
     expect(img).toHaveAttribute('src', newUrl);
   });
