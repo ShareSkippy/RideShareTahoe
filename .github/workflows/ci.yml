@@ -58,20 +58,13 @@ jobs:
           cache: 'npm'
       - run: npm ci
 
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
-
-      - name: Start Supabase Local Stack
-        run: supabase start
-
+      # Connecting to Remote DB via Secrets
       - name: Run Integration Tests
         run: npm run test:integration
         env:
           RUN_INTEGRATION_TESTS: true
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
   build:
     timeout-minutes: 15
