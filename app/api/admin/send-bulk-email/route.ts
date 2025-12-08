@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/libs/supabase/server';
+import { getAuthenticatedUser, createUnauthorizedResponse } from '@/libs/supabase/auth';
 import { sendEmail } from '@/libs/resend';
 import { strictRateLimit } from '@/libs/rateLimit';
 
@@ -32,7 +32,17 @@ const updateResultsWithBatch = (results: BulkEmailResult, batchResults: BatchRes
   }
 };
 
+/**
+ * Sends bulk emails to users.
+ * Supports batch processing, rate limiting, and email personalization.
+ */
 export async function POST(request: NextRequest) {
+  const { user, authError, supabase } = await getAuthenticatedUser(request);
+
+  if (authError || !user) {
+    return createUnauthorizedResponse(authError);
+  }
+
   try {
     // Apply rate limiting
     const rateLimitResult = strictRateLimit(request);
@@ -83,9 +93,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Create Supabase client with service role key for admin access
-    const supabase = await createClient();
 
     // Get all users with email addresses
     const { data: users, error: usersError } = await supabase

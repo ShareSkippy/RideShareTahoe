@@ -1,15 +1,13 @@
-import { createClient } from '@/libs/supabase/server';
+import { getAuthenticatedUser } from '@/libs/supabase/auth';
 import { NextRequest, NextResponse } from 'next/server';
 
-// GET /api/reviews/stats - Get review statistics for a user
+/**
+ * Retrieves aggregate review statistics for a user.
+ * Includes average rating, total count, and rating distribution.
+ */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-
-    // Check authentication (optional if userId is provided)
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { user, supabase } = await getAuthenticatedUser(request);
 
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId') || user?.id;

@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedUser, createUnauthorizedResponse } from '@/libs/supabase/auth';
 
 // This route is used to store the leads that are generated from the landing page.
 // The API call is initiated by <ButtonLead /> component
 export async function POST(req: NextRequest) {
+  const { user, authError } = await getAuthenticatedUser(req);
+
+  if (authError || !user) {
+    return createUnauthorizedResponse(authError);
+  }
+
   const body = await req.json();
 
   if (!body.email) {
