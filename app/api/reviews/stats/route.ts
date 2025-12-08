@@ -10,15 +10,16 @@ export async function GET(request: NextRequest) {
     const { user, authError, supabase } = await getAuthenticatedUser(request);
 
     const { searchParams } = new URL(request.url);
+    const userIdParam = searchParams.get('userId');
 
     // If authentication failed, only allow access when userId is explicitly provided
-    if (authError || !user) {
-      if (!searchParams.get('userId')) {
+    if (!user) {
+      if (!userIdParam) {
         return createUnauthorizedResponse(authError);
       }
     }
 
-    const userId = searchParams.get('userId') || user?.id;
+    const userId = userIdParam || user?.id;
 
     if (!userId) {
       return NextResponse.json(
