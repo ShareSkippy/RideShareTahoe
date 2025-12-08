@@ -32,7 +32,7 @@ export const useRideActions = (
           console.error('Error hiding post:', error);
           alert(
             'Failed to hide post: ' +
-              (typeof error === 'object' && error !== null && 'message' in error
+              (typeof error === 'object' && 'message' in error
                 ? (error as { message?: string }).message || 'Unknown error'
                 : 'Unknown error')
           );
