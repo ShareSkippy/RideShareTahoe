@@ -25,7 +25,7 @@ jest.mock('@/libs/supabase/server', () => ({
 
 // Test configuration
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const TEST_EMAIL_DOMAIN = '@example.com';
 
@@ -91,7 +91,7 @@ describeIntegration('Reviews API Integration Test', () => {
       email: driverEmail,
       password: 'TestPassword123!',
     });
-    const driverClient = createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    const driverClient = createSupabaseClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       global: { headers: { Authorization: `Bearer ${driverSession.session!.access_token}` } },
     });
 
@@ -128,7 +128,7 @@ describeIntegration('Reviews API Integration Test', () => {
       email: passengerEmail,
       password: 'TestPassword123!',
     });
-    const passengerClient = createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    const passengerClient = createSupabaseClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       global: { headers: { Authorization: `Bearer ${passengerSession.session!.access_token}` } },
     });
 
@@ -165,7 +165,7 @@ describeIntegration('Reviews API Integration Test', () => {
 
     // Mock createClient
     (createClient as jest.Mock).mockResolvedValue(
-      createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      createSupabaseClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
         global: { headers: { Authorization: `Bearer ${accessToken}` } },
       })
     );
@@ -198,7 +198,7 @@ describeIntegration('Reviews API Integration Test', () => {
 
     // Mock createClient to return an authenticated client for this user
     (createClient as jest.Mock).mockResolvedValue(
-      createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      createSupabaseClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
         global: {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -254,7 +254,7 @@ describeIntegration('Reviews API Integration Test', () => {
 
     // Mock createClient
     (createClient as jest.Mock).mockResolvedValue(
-      createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      createSupabaseClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
         global: { headers: { Authorization: `Bearer ${accessToken}` } },
       })
     );
@@ -289,7 +289,7 @@ describeIntegration('Reviews API Integration Test', () => {
 
     // Mock createClient to return an authenticated client for this user
     (createClient as jest.Mock).mockResolvedValue(
-      createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      createSupabaseClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
         global: {
           headers: {
             Authorization: `Bearer ${accessToken}`,

@@ -70,7 +70,7 @@ async function processCodeExchangeAndProfileUpdate(
   requestUrl: URL,
   code: string
 ): Promise<NextResponse> {
-  // Use createClient() which is configured to default to the secure Anon Key and handles cookies.
+  // Use createClient() which is configured to default to the secure Publishable Key and handles cookies.
   const supabase = await createClient();
 
   // 1. Exchange Code

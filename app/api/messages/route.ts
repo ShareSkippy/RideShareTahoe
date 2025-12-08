@@ -25,7 +25,7 @@ async function getAuthenticatedUser(
       // Create a new client with the token to ensure RLS works
       supabase = createSupabaseClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
         {
           global: {
             headers: {
