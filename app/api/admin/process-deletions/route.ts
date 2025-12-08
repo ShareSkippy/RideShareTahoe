@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       return createUnauthorizedResponse(authError);
     }
 
-    // Verify admin role via profiles tabley
+    // Verify admin role via profiles table
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
