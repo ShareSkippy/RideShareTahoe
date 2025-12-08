@@ -104,6 +104,8 @@ describe('RidePostCard', () => {
         onDelete={mockOnDelete}
       />
     );
+
+    expect(screen.queryByText('John Doe')).not.toBeInTheDocument();
   });
 
   it('should handle message click', () => {
