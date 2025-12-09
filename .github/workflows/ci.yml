@@ -65,15 +65,24 @@ jobs:
 
       - name: Start Local Supabase
         run: |
-          supabase start -x studio,realtime,logflare,imgproxy | tee supabase.log
+          # Capture both stdout and stderr to ensure we don't miss credentials
+          supabase start -x studio,realtime,logflare,imgproxy 2>&1 | tee supabase.log
           # Wait ensures services are up (start implies wait but good to be sure)
 
       - name: Set Environment Variables
         run: |
+          # Verify log content and strip color codes
+          sed -i 's/\x1b\[[0-9;]*m//g' supabase.log
+
+          echo "=== Supabase Start Log Output ==="
+          cat supabase.log
+          echo "================================="
+
           # Parse credentials from startup log since status command is unreliable in CI
-          API_URL=$(grep "API URL:" supabase.log | awk -F ': ' '{print $2}' | tr -d '[:space:]')
-          ANON_KEY=$(grep "anon key:" supabase.log | awk -F ': ' '{print $2}' | tr -d '[:space:]')
-          SERVICE_KEY=$(grep "service_role key:" supabase.log | awk -F ': ' '{print $2}' | tr -d '[:space:]')
+          # Use grep -oE to find the specific patterns (URL and JWTs) regardless of whitespace/colons
+          API_URL=$(grep -i "api url" supabase.log | grep -oE 'http://[^ ]+')
+          ANON_KEY=$(grep -i "anon key" supabase.log | grep -oE 'ey[a-zA-Z0-9._-]+')
+          SERVICE_KEY=$(grep -i "service_role key" supabase.log | grep -oE 'ey[a-zA-Z0-9._-]+')
 
           echo "Detected API URL: $API_URL"
 
