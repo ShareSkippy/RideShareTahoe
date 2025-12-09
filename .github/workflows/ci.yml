@@ -5,135 +5,90 @@ permissions:
 
 on:
   push:
-    branches-ignore: ['main']
+    branches: ['main']
   pull_request:
     branches: ['main']
 
 jobs:
-  setup:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '22.x'
-
-      - uses: actions/cache@v4
-        id: npm-cache
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - run: npm ci
-        if: steps.npm-cache.outputs.cache-hit != 'true'
-
-      - uses: actions/upload-artifact@v5
-        with:
-          name: node-modules
-          path: node_modules
-          retention-days: 1
-
   lint:
     timeout-minutes: 10
     runs-on: ubuntu-latest
-    needs: [setup]
     steps:
       - uses: actions/checkout@v6
-
-      - uses: actions/download-artifact@v6
+      - uses: actions/setup-node@v6
         with:
-          name: node-modules
-          path: .
-
+          node-version: '22.x'
+          cache: 'npm'
+      - run: npm ci
       - run: npm run lint
 
   test:
     timeout-minutes: 10
     runs-on: ubuntu-latest
-    needs: [setup]
     steps:
       - uses: actions/checkout@v6
-
-      - uses: actions/download-artifact@v6
+      - uses: actions/setup-node@v6
         with:
-          name: node-modules
-          path: .
-
+          node-version: '22.x'
+          cache: 'npm'
+      - run: npm ci
       - run: npm test
 
   typecheck:
     timeout-minutes: 5
     runs-on: ubuntu-latest
-    needs: [setup]
     steps:
       - uses: actions/checkout@v6
-
-      - uses: actions/download-artifact@v6
+      - uses: actions/setup-node@v6
         with:
-          name: node-modules
-          path: .
-
+          node-version: '22.x'
+          cache: 'npm'
+      - run: npm ci
       - run: npm run typecheck
 
   integration-test:
     timeout-minutes: 15
     runs-on: ubuntu-latest
-    needs: [setup, test]
+    needs: [test]
     steps:
       - uses: actions/checkout@v6
-
-      - uses: actions/download-artifact@v6
-        with:
-          name: node-modules
-          path: .
-
       - uses: actions/setup-node@v6
         with:
           node-version: '22.x'
+          cache: 'npm'
+      - run: npm ci
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@ebf138c2969b58c7cd05dad865ca3e6e85d722ff
         with:
           version: latest
 
-      - name: 🚀 Start Local Supabase Stack
+      - name: Start Local Supabase
         run: |
-          supabase start &
-          sleep 5 # Wait for services to initialize
+          supabase start -x studio,realtime,logflare,imgproxy
+          # Wait ensures services are up (start implies wait but good to be sure)
 
-      - name: 📝 Get Local Database Connection String
-        id: supabase-env
-        # Extract local connection details for the test runner
+      - name: Set Environment Variables
         run: |
-          DB_URL=$(cat .supabase/db/config.json | jq -r .connectionString.database)
-          echo "DATABASE_URL=$DB_URL" >> $GITHUB_ENV
-          # Set generic localhost variables
-          echo "NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." >> $GITHUB_ENV
+          supabase status -o json > supabase-status.json
+          echo "NEXT_PUBLIC_SUPABASE_URL=$(jq -r .api_url supabase-status.json)" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$(jq -r .anon_key supabase-status.json)" >> $GITHUB_ENV
+          echo "SUPABASE_SERVICE_ROLE_KEY=$(jq -r .service_role_key supabase-status.json)" >> $GITHUB_ENV
 
-      - name: 🧪 Run Integration Tests
+      - name: Run Integration Tests
         run: npm run test:integration
         env:
           RUN_INTEGRATION_TESTS: true
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
   build:
     timeout-minutes: 15
     runs-on: ubuntu-latest
-    needs: [lint, test, typecheck, integration-test]
+    needs: [lint, test, typecheck]
     steps:
       - uses: actions/checkout@v6
-
-      - uses: actions/download-artifact@v6
-        with:
-          name: node-modules
-          path: .
-
       - uses: actions/setup-node@v6
         with:
           node-version: '22.x'
-
+          cache: 'npm'
+      - run: npm ci
       - run: npm run build
