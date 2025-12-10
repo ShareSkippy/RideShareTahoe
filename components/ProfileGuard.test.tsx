@@ -132,18 +132,19 @@ describe('ProfileGuard', () => {
     expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it('shows the modal when visiting /community with an incomplete profile', async () => {
+  it('allows accessing /community without showing the modal', () => {
     (useUser as jest.Mock).mockReturnValue({ user: { id: '2' }, loading: false });
     (useUserProfile as jest.Mock).mockReturnValue({ data: null, isLoading: false });
     (usePathname as jest.Mock).mockReturnValue('/community');
 
     render(
       <ProfileGuard>
-        <div>Community</div>
+        <div>Community Section</div>
       </ProfileGuard>
     );
 
-    expect(await screen.findByText('Complete your profile')).toBeInTheDocument();
+    expect(screen.getByText('Community Section')).toBeInTheDocument();
+    expect(screen.queryByText('Complete your profile')).not.toBeInTheDocument();
     expect(mockPush).not.toHaveBeenCalled();
   });
 
