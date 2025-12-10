@@ -159,7 +159,7 @@ export function PassengerPostCard({
                   deleting ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                {deleting ? '...' : 'Hide'}
+                {deleting ? '...' : 'Delete'}
               </button>
             )}
           </>
