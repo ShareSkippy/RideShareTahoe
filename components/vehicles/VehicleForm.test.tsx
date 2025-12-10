@@ -564,9 +564,7 @@ describe('VehicleForm', () => {
       const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
       const requestBody = JSON.parse(fetchCall[1].body);
       expect(requestBody.make).toBe('Lincoln');
-      expect(requestBody.license_plate === '' || requestBody.license_plate === undefined).toBe(
-        true
-      );
+      expect(['', undefined]).toContain(requestBody.license_plate);
     });
 
     it('includes all fields when all are provided', async () => {
