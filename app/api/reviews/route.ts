@@ -265,9 +265,6 @@ function validateBookingEligibility(booking: Booking, userId: string) {
   const tripEndDateTime = new Date(`${ride.departure_date}T${ride.departure_time}`);
   const now = new Date();
 
-  // Add a buffer, maybe 2 hours after departure? Or assume completed status is enough.
-  // Relying on status='completed' which should be set by another process or driver.
-  // But let's keep a basic check that it's not in the future.
   if (now < tripEndDateTime) {
     return {
       error: "You cannot review a trip that hasn't happened yet",

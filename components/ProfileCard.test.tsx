@@ -57,7 +57,6 @@ describe('ProfileCard', () => {
     expect(profileImage).toHaveAttribute('src', baseProfile.photo_url);
 
     // Check role
-    // Check role
     // The role icon is in a sibling div of the Link containing the name
     expect(screen.getAllByText('🚗').length).toBeGreaterThan(0);
     expect(screen.getByText(/driver/i)).toBeInTheDocument();
