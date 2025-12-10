@@ -17,7 +17,7 @@ const LEGAL = {
   // Contact information
   contact: {
     legal: 'legal@sharevita.org', // Update when final
-    support: 'team@RideShareTahoe.com',
+    support: 'team@ridesharetahoe.com',
     jurisdiction: 'California, USA',
   },
 
