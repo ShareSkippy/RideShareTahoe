@@ -47,7 +47,7 @@ jobs:
       - run: npm run typecheck
 
   integration-test:
-    timeout-minutes: 15
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     needs: [test]
     steps:
@@ -63,32 +63,65 @@ jobs:
         with:
           version: latest
 
-      - name: Start Local Supabase
+      - name: Start Local Supabase and Set Environment Variables
+        id: supabase_env_setup
         run: |
-          # Capture both stdout and stderr to ensure we don't miss credentials
-          supabase start -x studio,realtime,logflare,imgproxy 2>&1 | tee supabase.log
-          # Wait ensures services are up (start implies wait but good to be sure)
+          # Start Supabase and capture the default environment variables as a source file.
+          supabase start --output env > supabase_ci_env.txt
 
-      - name: Set Environment Variables
+          # Source the temporary file to load the default variables into the current shell session.
+          source supabase_ci_env.txt
+
+          # Map the default variables to the application-specific keys and export them 
+          # to the $GITHUB_ENV file for use in subsequent steps.
+          echo "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL" >> $GITHUB_ENV
+          echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_ANON_KEY" >> $GITHUB_ENV
+          echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" >> $GITHUB_ENV
+
+      - name: Wait for Supabase services
         run: |
-          # Verify log content and strip color codes
-          sed -i 's/\x1b\[[0-9;]*m//g' supabase.log
+          MAX_ATTEMPTS=20
+          SLEEP_TIME=3
+          ATTEMPT=0
 
-          echo "=== Supabase Start Log Output ==="
-          cat supabase.log
-          echo "================================="
+          while ! supabase status > /dev/null 2>&1 && [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            echo "Attempt $((ATTEMPT + 1))/$MAX_ATTEMPTS: Services not ready. Waiting ${SLEEP_TIME}s..."
+            sleep $SLEEP_TIME
+            ATTEMPT=$((ATTEMPT + 1))
+          done
 
-          # Parse credentials from startup log since status command is unreliable in CI
-          # Use grep -oE to find the specific patterns (URL and JWTs) regardless of whitespace/colons
-          API_URL=$(grep -i "api url" supabase.log | grep -oE 'http://[^ ]+')
-          ANON_KEY=$(grep -i "anon key" supabase.log | grep -oE 'ey[a-zA-Z0-9._-]+')
-          SERVICE_KEY=$(grep -i "service_role key" supabase.log | grep -oE 'ey[a-zA-Z0-9._-]+')
+          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+            echo "Error: Supabase services failed to start within the timeout."
+            exit 1
+          fi
 
-          echo "Detected API URL: $API_URL"
+          supabase status
 
-          echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> $GITHUB_ENV
-          echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY" >> $GITHUB_ENV
-          echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_KEY" >> $GITHUB_ENV
+      - name: Verify Mapped Application Environment Variables
+        run: |
+          echo "--- Verifying Mapped Application Env Vars Loaded ---"
+
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+            echo "Error: NEXT_PUBLIC_SUPABASE_URL is missing or empty."
+            exit 1
+          else
+            echo "NEXT_PUBLIC_SUPABASE_URL is set."
+          fi
+
+          if [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "Error: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is missing or empty."
+            exit 1
+          else
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is set."
+          fi
+
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "Error: SUPABASE_SERVICE_ROLE_KEY is missing or empty."
+            exit 1
+          else
+            echo "SUPABASE_SERVICE_ROLE_KEY is set."
+          fi
+          echo "----------------------------------------------------"
 
       - name: Run Integration Tests
         run: npm run test:integration
