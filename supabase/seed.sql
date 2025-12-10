@@ -15,6 +15,7 @@ UPDATE public.profiles SET first_name = 'Jessica', last_name = 'Rodriguez', role
 UPDATE public.profiles SET pronouns = 'prefer not to answer' WHERE id = '00000000-0000-0000-0000-000000000004';
 
 INSERT INTO auth.users (id, email, encrypted_password, role, aud) VALUES ('00000000-0000-0000-0000-000000000005', 'alex.wang5@example.com', '$2a$10$dummy.hash.for.testing', 'authenticated', 'authenticated');
+-- Pronouns left null intentionally because Alex did not share them in this seed data set.
 UPDATE public.profiles SET first_name = 'Alex', last_name = 'Wang', role = 'driver', city = 'Palo Alto', state = 'CA', bio = 'Music lover, bring your playlist!' WHERE id = '00000000-0000-0000-0000-000000000005';
 
 INSERT INTO auth.users (id, email, encrypted_password, role, aud) VALUES ('00000000-0000-0000-0000-000000000006', 'ryan.kim6@example.com', '$2a$10$dummy.hash.for.testing', 'authenticated', 'authenticated');
