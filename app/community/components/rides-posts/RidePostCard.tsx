@@ -117,16 +117,7 @@ export function RidePostCard({
   const returnDateLabel = formatDateLabel(post.return_date);
   const returnTimeLabel = formatTimeLabel(post.return_time);
   const hasReturnInfo = isCombinedRoundTrip && !!returnTimeLabel;
-  let vehicleDetails: string | null = post.car_type || null;
-  const detailsUpper = vehicleDetails?.toUpperCase() || '';
-  if (
-    vehicleDetails &&
-    post.has_awd &&
-    !detailsUpper.includes('AWD') &&
-    !detailsUpper.includes('4WD')
-  ) {
-    vehicleDetails = `${vehicleDetails} (AWD)`;
-  }
+  const vehicleDetails: string | null = post.car_type || null;
   const vehicleLabel = vehicleDetails ? `Vehicle: ${vehicleDetails}` : null;
   const metaTags = [
     vehicleLabel,
