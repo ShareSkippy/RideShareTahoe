@@ -19,15 +19,13 @@ jobs:
           node-version: '22.x'
           cache: 'npm'
       - run: npm ci
-      - name: Install latest Supabase CLI
-        run: npm install -g supabase
       - name: Link to Supabase project
         run: |
-          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+          npx supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
           echo "Linked Supabase project ${{ secrets.SUPABASE_PROJECT_REF }}"
       - name: Push Supabase schema and seeds
         run: |
-          supabase db push --include-all
+          npx supabase db push --include-all
           echo "Supabase schema and seeds pushed"
 
   build:
