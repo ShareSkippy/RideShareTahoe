@@ -110,7 +110,7 @@ export default function CommunityPage() {
 
         {/* Tabs */}
         <div className="mb-6 sm:mb-8">
-          <div className="grid grid-cols-1 sm:flex sm:space-x-1 bg-white/60 dark:bg-slate-900/60 rounded-xl p-2 sm:p-1 shadow-md border border-white/20 dark:border-slate-700/30 gap-2 sm:gap-0 backdrop-blur-md">
+          <div className="grid grid-cols-2 sm:grid-cols-4 bg-white/60 dark:bg-slate-900/60 rounded-xl p-2 sm:p-1 shadow-md border border-white/20 dark:border-slate-700/30 gap-2 sm:gap-0 backdrop-blur-md">
             {[
               { id: 'driver-rides', label: 'Find a Driver', icon: '🚗', shortLabel: 'Drivers' },
               {
@@ -135,7 +135,7 @@ export default function CommunityPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full sm:flex-1 py-3 px-4 rounded-lg font-medium transition-all duration-200 text-sm sm:text-base ${
+                className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 text-sm sm:text-base ${
                   activeTab === tab.id
                     ? 'bg-linear-to-r from-blue-500 to-cyan-400 text-white shadow-md'
                     : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-slate-800/50'
