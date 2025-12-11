@@ -36,13 +36,17 @@ type BookingWithRelations = TripBookingRow & {
 /**
  * Allows the recipient of a booking request or invitation to approve or deny it directly from messages.
  */
-export async function PATCH(request: NextRequest, { params }: { params: { bookingId?: string } }) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ bookingId: string }> }
+) {
   const url = new URL(request.url);
   const pathSegments = url.pathname.split('/').filter(Boolean);
   // Fallback to the final segment in the URL when Next fails to populate params.
   const fallbackBookingId =
     pathSegments.length > 3 ? pathSegments[pathSegments.length - 1] : undefined;
-  const bookingId = (params.bookingId ?? fallbackBookingId ?? '').trim();
+  const { bookingId: paramBookingId } = await params;
+  const bookingId = (paramBookingId ?? fallbackBookingId ?? '').trim();
 
   try {
     const { user, authError, supabase } = await getAuthenticatedUser(request);
