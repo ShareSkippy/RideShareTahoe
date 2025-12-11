@@ -210,28 +210,32 @@ describe('PATCH /api/trips/bookings/[bookingId]', () => {
     });
   });
 
-  it('allows driver to deny their own invitation and sends appropriate message', async () => {
-    const bookingId = 'booking-invited';
+  it('does not decrement seats when passenger accepts invitation (already decremented on creation)', async () => {
+    const bookingId = 'booking-invitation';
+    const ride = {
+      id: 'ride-3',
+      title: 'Ski Trip',
+      start_location: 'San Jose',
+      end_location: 'Tahoe',
+      departure_date: '2025-12-30',
+      departure_time: '07:00',
+      available_seats: 2, // Already decremented when invitation was created
+    };
+
     const bookingRow = {
       id: bookingId,
-      ride_id: 'ride-3',
       driver_id: 'driver-3',
       passenger_id: 'passenger-3',
       status: 'invited',
-      pickup_location: 'Central Station',
-      pickup_time: '2025-12-27T10:00:00Z',
-      ride: {
-        id: 'ride-3',
-        title: 'Weekend Trip',
-        start_location: 'Reno',
-        end_location: 'Tahoe',
-        departure_date: '2025-12-27',
-        departure_time: '10:00',
-        available_seats: 3,
-      },
-      driver: { first_name: 'Driver', last_name: 'Three' },
-      passenger: { first_name: 'Rider', last_name: 'Three' },
+      pickup_location: 'Downtown San Jose',
+      pickup_time: '2025-12-30T07:00:00Z',
+      ride_id: ride.id,
+      ride,
+      driver: { first_name: 'Alice', last_name: 'Driver' },
+      passenger: { first_name: 'Bob', last_name: 'Passenger' },
     };
+
+    const rideUpdate = jest.fn();
 
     const supabase = {
       from: jest.fn((tableName: string) => {
@@ -245,51 +249,61 @@ describe('PATCH /api/trips/bookings/[bookingId]', () => {
             update: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
           };
         }
+        if (tableName === 'rides') {
+          return { update: rideUpdate };
+        }
         return { select: jest.fn(), update: jest.fn() };
       }),
     } as unknown as SupabaseClient<Database>;
 
-    const user = { id: bookingRow.driver_id };
+    const user = { id: bookingRow.passenger_id };
     (getAuthenticatedUser as jest.Mock).mockResolvedValue({ user, authError: null, supabase });
 
     const request = {
       url: `https://example.com/api/trips/bookings/${bookingId}`,
-      json: jest.fn().mockResolvedValue({ action: 'deny' }),
+      json: jest.fn().mockResolvedValue({ action: 'approve' }),
     } as unknown as NextRequest;
 
     await PATCH(request, { params: Promise.resolve({ bookingId }) });
 
+    // Seats should NOT be decremented because they were already decremented when invitation was created
+    expect(rideUpdate).not.toHaveBeenCalled();
     expect(sendConversationMessage).toHaveBeenCalledWith({
       supabase,
       senderId: user.id,
-      recipientId: bookingRow.passenger_id,
+      recipientId: bookingRow.driver_id,
       rideId: bookingRow.ride_id,
-      content: expect.stringContaining('cancelled the invitation'),
+      content: expect.stringContaining('accepted the invite'),
     });
   });
 
-  it('allows passenger to deny an invitation and sends appropriate message', async () => {
-    const bookingId = 'booking-invited-deny';
+  it('restores seat when passenger denies an invitation', async () => {
+    const bookingId = 'booking-deny-invitation';
+    const ride = {
+      id: 'ride-4',
+      title: 'Beach Trip',
+      start_location: 'SF',
+      end_location: 'Santa Cruz',
+      departure_date: '2025-12-28',
+      departure_time: '10:00',
+      available_seats: 1, // Was decremented to 1 when invitation was created
+    };
+
     const bookingRow = {
       id: bookingId,
-      ride_id: 'ride-4',
       driver_id: 'driver-4',
       passenger_id: 'passenger-4',
       status: 'invited',
-      pickup_location: 'Bus Stop',
-      pickup_time: '2025-12-28T11:00:00Z',
-      ride: {
-        id: 'ride-4',
-        title: 'Daily Commute',
-        start_location: 'Carson City',
-        end_location: 'Tahoe',
-        departure_date: '2025-12-28',
-        departure_time: '11:00',
-        available_seats: 2,
-      },
-      driver: { first_name: 'Driver', last_name: 'Four' },
-      passenger: { first_name: 'Rider', last_name: 'Four' },
+      pickup_location: 'Downtown SF',
+      pickup_time: '2025-12-28T10:00:00Z',
+      ride_id: ride.id,
+      ride,
+      driver: { first_name: 'Charlie', last_name: 'Driver' },
+      passenger: { first_name: 'Dana', last_name: 'Passenger' },
     };
+
+    const rideUpdateEq = jest.fn().mockResolvedValue({ error: null });
+    const rideUpdate = jest.fn().mockReturnValue({ eq: rideUpdateEq });
 
     const supabase = {
       from: jest.fn((tableName: string) => {
@@ -302,6 +316,9 @@ describe('PATCH /api/trips/bookings/[bookingId]', () => {
             }),
             update: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
           };
+        }
+        if (tableName === 'rides') {
+          return { update: rideUpdate };
         }
         return { select: jest.fn(), update: jest.fn() };
       }),
@@ -317,12 +334,81 @@ describe('PATCH /api/trips/bookings/[bookingId]', () => {
 
     await PATCH(request, { params: Promise.resolve({ bookingId }) });
 
+    // Seat should be restored (incremented) because it was decremented when invitation was created
+    expect(rideUpdate).toHaveBeenCalledWith({ available_seats: 2 });
+    expect(rideUpdateEq).toHaveBeenCalledWith('id', ride.id);
     expect(sendConversationMessage).toHaveBeenCalledWith({
       supabase,
       senderId: user.id,
       recipientId: bookingRow.driver_id,
       rideId: bookingRow.ride_id,
       content: expect.stringContaining('declined the invitation'),
+    });
+  });
+
+  it('handles unlimited seats (null) when accepting invitation', async () => {
+    const bookingId = 'booking-unlimited';
+    const ride = {
+      id: 'ride-5',
+      title: 'Bus Trip',
+      start_location: 'Oakland',
+      end_location: 'Reno',
+      departure_date: '2025-12-31',
+      departure_time: '06:00',
+      available_seats: null,
+    };
+
+    const bookingRow = {
+      id: bookingId,
+      driver_id: 'driver-5',
+      passenger_id: 'passenger-5',
+      status: 'invited',
+      pickup_location: 'Downtown Oakland',
+      pickup_time: '2025-12-31T06:00:00Z',
+      ride_id: ride.id,
+      ride,
+      driver: { first_name: 'Eve', last_name: 'Driver' },
+      passenger: { first_name: 'Frank', last_name: 'Passenger' },
+    };
+
+    const rideUpdate = jest.fn();
+
+    const supabase = {
+      from: jest.fn((tableName: string) => {
+        if (tableName === 'trip_bookings') {
+          return {
+            select: jest.fn().mockReturnValue({
+              eq: jest.fn().mockReturnValue({
+                maybeSingle: jest.fn().mockResolvedValue({ data: bookingRow, error: null }),
+              }),
+            }),
+            update: jest.fn().mockReturnValue({ eq: jest.fn().mockResolvedValue({ error: null }) }),
+          };
+        }
+        if (tableName === 'rides') {
+          return { update: rideUpdate };
+        }
+        return { select: jest.fn(), update: jest.fn() };
+      }),
+    } as unknown as SupabaseClient<Database>;
+
+    const user = { id: bookingRow.passenger_id };
+    (getAuthenticatedUser as jest.Mock).mockResolvedValue({ user, authError: null, supabase });
+
+    const request = {
+      url: `https://example.com/api/trips/bookings/${bookingId}`,
+      json: jest.fn().mockResolvedValue({ action: 'approve' }),
+    } as unknown as NextRequest;
+
+    await PATCH(request, { params: Promise.resolve({ bookingId }) });
+
+    expect(rideUpdate).not.toHaveBeenCalled();
+    expect(sendConversationMessage).toHaveBeenCalledWith({
+      supabase,
+      senderId: user.id,
+      recipientId: bookingRow.driver_id,
+      rideId: bookingRow.ride_id,
+      content: expect.stringContaining('accepted the invite'),
     });
   });
 });

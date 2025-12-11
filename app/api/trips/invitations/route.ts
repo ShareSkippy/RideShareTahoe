@@ -98,6 +98,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
 
+    // Decrement available seats when invitation is created (if seats are tracked)
+    if (ride.available_seats !== null) {
+      const { error: seatUpdateError } = await supabase
+        .from('rides')
+        .update({ available_seats: ride.available_seats - 1 })
+        .eq('id', body.ride_id)
+        .gt('available_seats', 0); // Only update if seats are still available
+
+      if (seatUpdateError) {
+        // If seat update fails, we need to roll back the booking
+        await supabase.from('trip_bookings').delete().eq('id', booking.id);
+        return NextResponse.json(
+          { error: 'Failed to reserve seat for invitation' },
+          { status: 500 }
+        );
+      }
+    }
+
     try {
       const { data: driverProfile } = await supabase
         .from('profiles')
