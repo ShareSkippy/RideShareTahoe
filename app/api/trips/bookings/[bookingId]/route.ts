@@ -46,7 +46,7 @@ export async function PATCH(
   const fallbackBookingId =
     pathSegments.length > 3 ? pathSegments[pathSegments.length - 1] : undefined;
   const { bookingId: paramBookingId } = await params;
-  const bookingId = (paramBookingId ?? fallbackBookingId ?? '').trim();
+  const bookingId = ((paramBookingId ?? '').trim() || (fallbackBookingId ?? '')).trim();
 
   try {
     const { user, authError, supabase } = await getAuthenticatedUser(request);

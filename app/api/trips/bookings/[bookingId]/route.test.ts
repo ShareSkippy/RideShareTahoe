@@ -76,7 +76,7 @@ describe('PATCH /api/trips/bookings/[bookingId]', () => {
       json: jest.fn().mockResolvedValue({ action: 'approve' }),
     } as unknown as NextRequest;
 
-    await PATCH(request, { params: { bookingId } });
+    await PATCH(request, { params: Promise.resolve({ bookingId }) });
 
     expect(rideUpdate).toHaveBeenCalledWith({ available_seats: 1 });
     expect(rideUpdateEq).toHaveBeenCalledWith('id', ride.id);
@@ -136,7 +136,7 @@ describe('PATCH /api/trips/bookings/[bookingId]', () => {
       json: jest.fn().mockResolvedValue({ action: 'cancel' }),
     } as unknown as NextRequest;
 
-    await PATCH(request, { params: { bookingId } });
+    await PATCH(request, { params: Promise.resolve({ bookingId }) });
 
     expect(sendConversationMessage).toHaveBeenCalledWith({
       supabase,
@@ -199,7 +199,7 @@ describe('PATCH /api/trips/bookings/[bookingId]', () => {
       json: jest.fn().mockResolvedValue({ action: 'approve' }),
     } as unknown as NextRequest;
 
-    await PATCH(request, { params: {} as { bookingId?: string } });
+    await PATCH(request, { params: Promise.resolve({ bookingId: '' }) });
 
     expect(sendConversationMessage).toHaveBeenCalledWith({
       supabase,
