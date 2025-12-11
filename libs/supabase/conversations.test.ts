@@ -1,6 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import * as conversationModule from './conversations';
 
+type MaybeSingleResult<T = unknown> = {
+  data: T | null;
+  error: null;
+};
+type MaybeSingleMock<T = unknown> = jest.Mock<Promise<MaybeSingleResult<T>>, []>;
+type IsMock<T = unknown> = jest.Mock<{ maybeSingle: MaybeSingleMock<T> }, []>;
+type EqMock<T = unknown> = jest.Mock<EqReturn<T>, [string]>;
+type EqReturn<T = unknown> =
+  | { maybeSingle: MaybeSingleMock<T> }
+  | { eq: EqMock<T> }
+  | { eq: EqMock<T>; is: IsMock<T> }
+  | { is: IsMock<T> };
+
 describe('alphabeticalCompare', () => {
   it('returns negative when first string comes before second', () => {
     expect(conversationModule.alphabeticalCompare('alpha', 'bravo')).toBeLessThan(0);
@@ -37,8 +50,11 @@ describe('ensureConversationForRide', () => {
     };
 
     // Mock for the first query that finds the match
-    const maybeSingle = jest.fn().mockResolvedValue({ data: existingConversation, error: null });
-    const eq = jest.fn((field: string) => {
+    const maybeSingle: MaybeSingleMock<typeof existingConversation> = jest.fn().mockResolvedValue({
+      data: existingConversation,
+      error: null,
+    });
+    const eq: EqMock<typeof existingConversation> = jest.fn((field: string) => {
       if (field === 'ride_id') {
         return { maybeSingle };
       }
@@ -72,8 +88,11 @@ describe('ensureConversationForRide', () => {
     };
 
     // Mock for both queries returning no results
-    const maybeSingle = jest.fn().mockResolvedValue({ data: null, error: null });
-    const eq = jest.fn((field: string) => {
+    const maybeSingle: MaybeSingleMock<typeof newConversation> = jest.fn().mockResolvedValue({
+      data: null,
+      error: null,
+    });
+    const eq: EqMock<typeof newConversation> = jest.fn((field: string) => {
       if (field === 'ride_id') {
         return { maybeSingle };
       }
@@ -124,9 +143,14 @@ describe('sendConversationMessage', () => {
           conversationCallCount += 1;
           if (conversationCallCount === 1) {
             // First query finds the conversation
-            const maybeSingle = jest.fn().mockResolvedValue({ data: conversationRow, error: null });
-            const is = jest.fn().mockReturnValue({ maybeSingle });
-            const eq = jest.fn((field: string) => {
+            const maybeSingle: MaybeSingleMock<typeof conversationRow> = jest
+              .fn()
+              .mockResolvedValue({
+                data: conversationRow,
+                error: null,
+              });
+            const is: IsMock<typeof conversationRow> = jest.fn().mockReturnValue({ maybeSingle });
+            const eq: EqMock<typeof conversationRow> = jest.fn((field: string) => {
               if (field === 'participant1_id' || field === 'participant2_id') {
                 // Return object with eq and is methods for chaining
                 return { eq, is };
