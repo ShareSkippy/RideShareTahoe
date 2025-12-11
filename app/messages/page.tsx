@@ -5,6 +5,7 @@ import { supabase } from '@/libs/supabase';
 import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 
 import ReportModal from '@/components/ReportModal';
+import toast from 'react-hot-toast';
 
 interface Participant {
   id: string;
@@ -40,6 +41,19 @@ interface Message {
   is_read?: boolean;
 }
 
+interface BookingRequest {
+  id: string;
+  ride_id: string;
+  driver_id: string;
+  passenger_id: string;
+  status: 'pending' | 'invited';
+  pickup_location?: string | null;
+  pickup_time?: string | null;
+  driver?: Participant | null;
+  passenger?: Participant | null;
+  booking_id?: string | null;
+}
+
 /**
  * Displays the authenticated user's messaging dashboard, including conversations and the thread view.
  */
@@ -53,6 +67,9 @@ export default function MessagesPage() {
   const [messageInput, setMessageInput] = useState('');
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [bookingRequests, setBookingRequests] = useState<BookingRequest[]>([]);
+  const [bookingRequestsLoading, setBookingRequestsLoading] = useState(false);
+  const [bookingActionLoadingIds, setBookingActionLoadingIds] = useState<string[]>([]);
 
   const currentConversation = useMemo(() => {
     return conversations.find((conversation) => conversation.id === selectedConversationId) ?? null;
@@ -76,6 +93,8 @@ export default function MessagesPage() {
     }
     return `${otherParticipant.first_name} ${otherParticipant.last_name}`;
   }, [otherParticipant]);
+
+  const hasActiveOrPendingTrip = bookingRequests.length > 0;
 
   const loadConversations = useCallback(async () => {
     if (!user) {
@@ -103,7 +122,6 @@ export default function MessagesPage() {
         throw error;
       }
 
-      // Cast data to Conversation[] because Supabase types might not match exactly with nested joins automatically
       const safeData = (Array.isArray(data) ? data : []) as unknown as Conversation[];
       setConversations(safeData);
       setSelectedConversationId((previous) => previous ?? safeData[0]?.id ?? null);
@@ -140,7 +158,7 @@ export default function MessagesPage() {
         .or(
           `and(sender_id.eq.${user.id},recipient_id.eq.${otherId}),and(sender_id.eq.${otherId},recipient_id.eq.${user.id})`
         )
-        .eq('conversation_id', currentConversation.id) // Ensure we only get messages for this conversation
+        .eq('conversation_id', currentConversation.id)
         .order('created_at', { ascending: true });
 
       if (error) {
@@ -156,6 +174,74 @@ export default function MessagesPage() {
     }
   }, [currentConversation, user]);
 
+  const fetchBookingRequests = useCallback(async () => {
+    if (!currentConversation || !user) {
+      setBookingRequests([]);
+      return;
+    }
+
+    const otherId =
+      currentConversation.participant1_id === user.id
+        ? currentConversation.participant2_id
+        : currentConversation.participant1_id;
+
+    if (!otherId) {
+      setBookingRequests([]);
+      return;
+    }
+
+    setBookingRequestsLoading(true);
+
+    try {
+      let requestQuery = supabase
+        .from('trip_bookings')
+        .select(
+          `id, ride_id, status, pickup_location, pickup_time, driver_id, passenger_id,
+          driver:profiles!trip_bookings_driver_id_fkey(id, first_name, last_name),
+          passenger:profiles!trip_bookings_passenger_id_fkey(id, first_name, last_name)`
+        )
+        .or(
+          `and(driver_id.eq.${user.id},passenger_id.eq.${otherId}),and(driver_id.eq.${otherId},passenger_id.eq.${user.id})`
+        )
+        .in('status', ['pending', 'invited']);
+
+      if (currentConversation.ride?.id) {
+        requestQuery = requestQuery.eq('ride_id', currentConversation.ride.id);
+      } else {
+        requestQuery = requestQuery.is('ride_id', null);
+      }
+
+      const { data, error } = await requestQuery.order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setBookingRequests(
+        Array.isArray(data)
+          ? data.map((item) => {
+              const bookingIdFromRow = (item as { booking_id?: string | null }).booking_id;
+              return {
+                ...item,
+                booking_id: bookingIdFromRow ?? item.id ?? null,
+                driver: Array.isArray(item.driver)
+                  ? (item.driver[0] ?? null)
+                  : (item.driver ?? null),
+                passenger: Array.isArray(item.passenger)
+                  ? (item.passenger[0] ?? null)
+                  : (item.passenger ?? null),
+              };
+            })
+          : []
+      );
+    } catch (error) {
+      console.error('Unable to load booking requests', error);
+      setBookingRequests([]);
+    } finally {
+      setBookingRequestsLoading(false);
+    }
+  }, [currentConversation, user]);
+
   useEffect(() => {
     if (!user || authLoading) {
       return;
@@ -166,6 +252,10 @@ export default function MessagesPage() {
   useEffect(() => {
     loadMessages();
   }, [loadMessages]);
+
+  useEffect(() => {
+    fetchBookingRequests();
+  }, [fetchBookingRequests]);
 
   useEffect(() => {
     if (!user || authLoading) return;
@@ -240,7 +330,7 @@ export default function MessagesPage() {
 
   const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!messageInput.trim() || !user || !currentConversation) {
+    if (!hasActiveOrPendingTrip || !messageInput.trim() || !user || !currentConversation) {
       return;
     }
 
@@ -283,6 +373,46 @@ export default function MessagesPage() {
       // For now, we just log it. In a real app, we'd show a toast or retry.
     }
   };
+
+  const handleBookingAction = useCallback(
+    async (bookingId: string, action: 'approve' | 'deny' | 'cancel') => {
+      if (!bookingId) {
+        console.error('Booking ID is required to update booking request');
+        return;
+      }
+
+      setBookingActionLoadingIds((prev) => [...prev, bookingId]);
+
+      try {
+        const response = await fetch(`/api/trips/bookings/${bookingId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        });
+
+        const payload = await response.json();
+
+        if (!response.ok) {
+          const failureMessage = payload.error || 'Unable to update booking request';
+          throw new Error(failureMessage);
+        }
+
+        await fetchBookingRequests();
+        await loadMessages();
+        if (action === 'cancel') {
+          toast.success('Ride request canceled.');
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          toast.error(error.message);
+        }
+        console.error('Error responding to booking request:', error);
+      } finally {
+        setBookingActionLoadingIds((prev) => prev.filter((id) => id !== bookingId));
+      }
+    },
+    [fetchBookingRequests, loadMessages]
+  );
 
   if (authLoading) {
     return (
@@ -367,6 +497,117 @@ export default function MessagesPage() {
                     <p className="text-sm font-semibold uppercase tracking-[0.3em] text-blue-600 dark:text-blue-400">
                       Conversation
                     </p>
+
+                    <div className="space-y-2 border-b border-gray-100 dark:border-slate-800 pb-4">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400">
+                          Ride requests
+                        </h2>
+                        <p className="text-xs text-gray-400">
+                          {bookingRequests.length}{' '}
+                          {bookingRequests.length === 1 ? 'request' : 'requests'}
+                        </p>
+                      </div>
+
+                      {bookingRequestsLoading && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Loading ride requests…
+                        </p>
+                      )}
+                      {!bookingRequestsLoading && bookingRequests.length > 0 && (
+                        <div className="space-y-3">
+                          {bookingRequests.map((request) => {
+                            const bookingId = request.id ?? request.booking_id;
+                            const isUserDriver = request.driver_id === user?.id;
+                            const canAct = isUserDriver
+                              ? request.status === 'pending'
+                              : request.status === 'invited';
+                            const canCancelRequest = !isUserDriver && request.status === 'pending';
+                            const otherPersonName = isUserDriver
+                              ? `${request.passenger?.first_name ?? 'Passenger'} ${request.passenger?.last_name ?? ''}`.trim()
+                              : `${request.driver?.first_name ?? 'Driver'} ${request.driver?.last_name ?? ''}`.trim();
+                            const pickupTime = request.pickup_time
+                              ? new Date(request.pickup_time).toLocaleTimeString([], {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                })
+                              : 'TBD';
+                            const actionInProgress = bookingId
+                              ? bookingActionLoadingIds.includes(bookingId)
+                              : false;
+
+                            return (
+                              <div
+                                key={
+                                  bookingId ??
+                                  request.ride_id ??
+                                  `${request.driver_id}-${request.passenger_id}`
+                                }
+                                className="rounded-2xl border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 p-4 shadow-sm"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-4">
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                      {otherPersonName || 'Passenger'} •{' '}
+                                      {request.status === 'pending' ? 'Request' : 'Invitation'}
+                                    </p>
+                                    <span className="text-xs font-semibold capitalize text-blue-600 dark:text-blue-400">
+                                      {request.status}
+                                    </span>
+                                  </div>
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                  Pickup: {request.pickup_location ?? 'TBD'} at {pickupTime}
+                                </p>
+                                {canAct && bookingId && (
+                                  <div className="mt-3 flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBookingAction(bookingId, 'approve')}
+                                      disabled={actionInProgress}
+                                      className="flex-1 rounded-2xl border border-blue-400 bg-blue-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 transition disabled:opacity-70"
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBookingAction(bookingId, 'deny')}
+                                      disabled={actionInProgress}
+                                      className="flex-1 rounded-2xl border border-red-400 bg-red-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-red-600 transition disabled:opacity-70"
+                                    >
+                                      Deny
+                                    </button>
+                                  </div>
+                                )}
+                                {canCancelRequest && bookingId && (
+                                  <div className="mt-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBookingAction(bookingId, 'cancel')}
+                                      disabled={actionInProgress}
+                                      className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600 transition disabled:opacity-70"
+                                    >
+                                      Cancel request
+                                    </button>
+                                  </div>
+                                )}
+                                {!bookingId && (
+                                  <p className="mt-2 text-xs text-red-600">
+                                    Booking ID missing for this request.
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {!bookingRequestsLoading && bookingRequests.length === 0 && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          No pending ride requests.
+                        </p>
+                      )}
+                    </div>
+
                     <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
                       {otherParticipantName}
                     </h1>
@@ -436,18 +677,28 @@ export default function MessagesPage() {
                 <textarea
                   rows={2}
                   className="flex-1 rounded-2xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-900 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
-                  placeholder="Type your message..."
+                  placeholder={
+                    hasActiveOrPendingTrip
+                      ? 'Type your message...'
+                      : 'Messages are disabled until you share a trip.'
+                  }
                   value={messageInput}
                   onChange={(event) => setMessageInput(event.target.value)}
+                  disabled={!hasActiveOrPendingTrip}
                 />
                 <button
                   type="submit"
                   className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={!messageInput.trim()}
+                  disabled={!messageInput.trim() || !hasActiveOrPendingTrip}
                 >
                   Send
                 </button>
               </form>
+              {!hasActiveOrPendingTrip && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Messages remain paused when you no longer have an active or pending ride request.
+                </p>
+              )}
             </>
           ) : (
             <div className="flex flex-col items-center justify-center space-y-3 py-12">
