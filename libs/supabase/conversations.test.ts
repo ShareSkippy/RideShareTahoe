@@ -1,6 +1,32 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import * as conversationModule from './conversations';
 
+describe('alphabeticalCompare', () => {
+  it('returns negative when first string comes before second', () => {
+    expect(conversationModule.alphabeticalCompare('alpha', 'bravo')).toBeLessThan(0);
+  });
+
+  it('returns positive when first string comes after second', () => {
+    expect(conversationModule.alphabeticalCompare('zebra', 'apple')).toBeGreaterThan(0);
+  });
+
+  it('returns zero when strings are equal', () => {
+    expect(conversationModule.alphabeticalCompare('charlie', 'charlie')).toBe(0);
+  });
+
+  it('handles case-sensitive comparison correctly', () => {
+    // localeCompare by default is case-sensitive
+    const result = conversationModule.alphabeticalCompare('Apple', 'apple');
+    expect(result).not.toBe(0);
+  });
+
+  it('handles empty strings', () => {
+    expect(conversationModule.alphabeticalCompare('', 'text')).toBeLessThan(0);
+    expect(conversationModule.alphabeticalCompare('text', '')).toBeGreaterThan(0);
+    expect(conversationModule.alphabeticalCompare('', '')).toBe(0);
+  });
+});
+
 describe('ensureConversationForRide', () => {
   it('returns an existing conversation when one is found', async () => {
     const existingConversation = {
@@ -10,10 +36,15 @@ describe('ensureConversationForRide', () => {
       ride_id: 'ride-123',
     };
 
+    // Mock for the first query that finds the match
     const maybeSingle = jest.fn().mockResolvedValue({ data: existingConversation, error: null });
-    const eq = jest.fn().mockReturnValue({ maybeSingle });
-    const or = jest.fn().mockReturnValue({ eq, is: jest.fn(() => ({ maybeSingle })) });
-    const select = jest.fn().mockReturnValue({ or });
+    const eq = jest.fn((field: string) => {
+      if (field === 'ride_id') {
+        return { maybeSingle };
+      }
+      return { eq };
+    });
+    const select = jest.fn().mockReturnValue({ eq });
     const insert = jest.fn();
 
     const supabase = { from: jest.fn(() => ({ select, insert })) } as unknown as SupabaseClient;
@@ -27,6 +58,8 @@ describe('ensureConversationForRide', () => {
 
     expect(result).toBe(existingConversation);
     expect(insert).not.toHaveBeenCalled();
+    expect(eq).toHaveBeenCalledWith('participant1_id', 'alpha');
+    expect(eq).toHaveBeenCalledWith('participant2_id', 'bravo');
     expect(eq).toHaveBeenCalledWith('ride_id', 'ride-123');
   });
 
@@ -38,10 +71,15 @@ describe('ensureConversationForRide', () => {
       ride_id: 'ride-456',
     };
 
+    // Mock for both queries returning no results
     const maybeSingle = jest.fn().mockResolvedValue({ data: null, error: null });
-    const eq = jest.fn().mockReturnValue({ maybeSingle });
-    const or = jest.fn().mockReturnValue({ eq, is: jest.fn(() => ({ maybeSingle })) });
-    const select = jest.fn().mockReturnValue({ or });
+    const eq = jest.fn((field: string) => {
+      if (field === 'ride_id') {
+        return { maybeSingle };
+      }
+      return { eq };
+    });
+    const select = jest.fn().mockReturnValue({ eq });
 
     const insertSingle = jest.fn().mockResolvedValue({ data: newConversation, error: null });
     const insertSelect = jest.fn().mockReturnValue({ single: insertSingle });
@@ -85,11 +123,18 @@ describe('sendConversationMessage', () => {
         if (tableName === 'conversations') {
           conversationCallCount += 1;
           if (conversationCallCount === 1) {
+            // First query finds the conversation
             const maybeSingle = jest.fn().mockResolvedValue({ data: conversationRow, error: null });
-            const eq = jest.fn().mockReturnValue({ maybeSingle });
             const is = jest.fn().mockReturnValue({ maybeSingle });
-            const or = jest.fn().mockReturnValue({ eq, is });
-            const select = jest.fn().mockReturnValue({ or });
+            const eq = jest.fn((field: string) => {
+              if (field === 'participant1_id' || field === 'participant2_id') {
+                // Return object with eq and is methods for chaining
+                return { eq, is };
+              }
+              // For ride_id, return object with is method
+              return { is };
+            });
+            const select = jest.fn().mockReturnValue({ eq });
             return { select };
           }
 

@@ -13,6 +13,26 @@ const bookingActionSchema = z.object({
   action: z.enum(['approve', 'deny', 'cancel']),
 });
 
+/**
+ * Valid booking status values from the database schema.
+ * These values must match the CHECK constraint in the trip_bookings table.
+ */
+const VALID_BOOKING_STATUSES = [
+  'pending',
+  'confirmed',
+  'cancelled',
+  'completed',
+  'invited',
+] as const;
+type BookingStatus = (typeof VALID_BOOKING_STATUSES)[number];
+
+/**
+ * Validates that a status value is a valid booking status.
+ */
+function isValidBookingStatus(status: string): status is BookingStatus {
+  return VALID_BOOKING_STATUSES.includes(status as BookingStatus);
+}
+
 type TripBookingRow = Database['public']['Tables']['trip_bookings']['Row'];
 type RideRow = Database['public']['Tables']['rides']['Row'];
 type ProfileRow = Database['public']['Tables']['profiles']['Row'];
@@ -86,7 +106,7 @@ export async function PATCH(
       );
     }
 
-    const nextStatus = body.action === 'approve' ? 'confirmed' : 'cancelled';
+    const nextStatus: BookingStatus = body.action === 'approve' ? 'confirmed' : 'cancelled';
 
     const bookingRide = booking.ride;
     // Only decrement seats when confirming a pending booking (driver approving passenger request)
@@ -191,6 +211,12 @@ function getUserRole(
 
 /**
  * Determines if the action is valid for the current booking state and user role.
+ *
+ * Valid combinations:
+ * - Driver can approve/deny pending bookings (passenger requested to join)
+ * - Driver can deny invited bookings (driver cancels their own invitation)
+ * - Passenger can approve/deny invited bookings (driver invited passenger)
+ * - Passenger can cancel pending bookings (passenger cancels their own request)
  */
 function getActionType(
   action: 'approve' | 'deny' | 'cancel',
@@ -208,7 +234,7 @@ function getActionType(
   }
   if (action === 'deny') {
     if (
-      (userRole === 'driver' && status === 'pending') ||
+      (userRole === 'driver' && (status === 'pending' || status === 'invited')) ||
       (userRole === 'passenger' && status === 'invited')
     ) {
       return 'deny';
@@ -244,12 +270,20 @@ async function handleSeatUpdate(
 
 /**
  * Updates the booking status.
+ * Validates that the status is a valid enum value from the database schema.
  */
 async function updateBookingStatus(
   supabase: SupabaseClient<Database>,
   bookingId: string,
   nextStatus: string
 ): Promise<true | Error> {
+  // Validate that nextStatus is a valid booking status enum value
+  if (!isValidBookingStatus(nextStatus)) {
+    return new Error(
+      `Invalid booking status: ${nextStatus}. Must be one of: ${VALID_BOOKING_STATUSES.join(', ')}`
+    );
+  }
+
   const { error } = await supabase
     .from('trip_bookings')
     .update({
@@ -296,6 +330,10 @@ function buildBookingMessage({
       return `I confirmed ${passengerName} for ${rideLabel}. Pickup: ${booking.pickup_location ?? 'TBD'} ${pickupTime}`;
     }
     if (action === 'deny') {
+      // Driver denying a passenger request (pending) vs canceling their own invitation (invited)
+      if (booking.status === 'invited') {
+        return `I cancelled the invitation to ${passengerName} for ${rideLabel}.`;
+      }
       return `I declined the request from ${passengerName} for ${rideLabel}.`;
     }
   } else if (action === 'cancel') {
