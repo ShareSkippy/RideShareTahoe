@@ -102,13 +102,17 @@ export async function POST(request: NextRequest) {
     if (ride.available_seats !== null) {
       const { error: seatUpdateError } = await supabase
         .from('rides')
-        .update({ available_seats: Math.max(ride.available_seats - 1, 0) })
-        .eq('id', body.ride_id);
+        .update({ available_seats: ride.available_seats - 1 })
+        .eq('id', body.ride_id)
+        .gt('available_seats', 0); // Only update if seats are still available
 
       if (seatUpdateError) {
-        console.error('Failed to update available seats for invitation', seatUpdateError);
-        // Note: We don't fail the invitation creation if seat update fails
-        // The invitation was already created successfully
+        // If seat update fails, we need to roll back the booking
+        await supabase.from('trip_bookings').delete().eq('id', booking.id);
+        return NextResponse.json(
+          { error: 'Failed to reserve seat for invitation' },
+          { status: 500 }
+        );
       }
     }
 

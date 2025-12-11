@@ -33,7 +33,8 @@ describe('POST /api/trips/invitations', () => {
       departure_time: '08:30',
     };
 
-    const rideUpdateEq = jest.fn().mockResolvedValue({ error: null });
+    const rideUpdateGt = jest.fn().mockResolvedValue({ error: null });
+    const rideUpdateEq = jest.fn().mockReturnValue({ gt: rideUpdateGt });
     const rideUpdate = jest.fn().mockReturnValue({ eq: rideUpdateEq });
 
     const supabase = {
@@ -50,12 +51,14 @@ describe('POST /api/trips/invitations', () => {
           const eqSecond = jest.fn().mockReturnValue({ in: inChain });
           const eqFirst = jest.fn().mockReturnValue({ eq: eqSecond });
           const select = jest.fn().mockReturnValue({ eq: eqFirst });
+          const deleteEq = jest.fn().mockResolvedValue({ error: null });
+          const deleteChain = jest.fn().mockReturnValue({ eq: deleteEq });
           const insert = jest.fn().mockReturnValue({
             select: jest.fn().mockReturnValue({
               single: jest.fn().mockResolvedValue({ data: { id: 'booking-xx' }, error: null }),
             }),
           });
-          return { select, insert };
+          return { select, insert, delete: deleteChain };
         }
 
         if (tableName === 'profiles') {
@@ -93,6 +96,7 @@ describe('POST /api/trips/invitations', () => {
     // Verify seats are decremented when invitation is created
     expect(rideUpdate).toHaveBeenCalledWith({ available_seats: 1 });
     expect(rideUpdateEq).toHaveBeenCalledWith('id', 'a3c8e5a6-ec45-4e90-9f3b-52f4ef6ccebf');
+    expect(rideUpdateGt).toHaveBeenCalledWith('available_seats', 0);
 
     expect(sendConversationMessage).toHaveBeenCalledWith({
       supabase,
