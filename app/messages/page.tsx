@@ -71,6 +71,10 @@ export default function MessagesPage() {
   const [bookingRequestsLoading, setBookingRequestsLoading] = useState(false);
   const [bookingActionLoadingIds, setBookingActionLoadingIds] = useState<string[]>([]);
   const [rideRequestsExpanded, setRideRequestsExpanded] = useState(true);
+  const requestCountLabel =
+    bookingRequests.length === 1 ? '1 request' : `${bookingRequests.length} requests`;
+  const rideRequestToggleLabel = rideRequestsExpanded ? 'Hide ride requests' : 'Show ride requests';
+  const rideRequestDetailsToggleText = `${rideRequestToggleLabel} (${requestCountLabel})`;
 
   const currentConversation = useMemo(() => {
     return conversations.find((conversation) => conversation.id === selectedConversationId) ?? null;
@@ -501,157 +505,26 @@ export default function MessagesPage() {
         <section className="flex-1 space-y-6 rounded-3xl bg-white/80 dark:bg-slate-900/80 p-6 shadow-xl border border-white/20 dark:border-slate-800">
           {currentConversation ? (
             <>
-              <header className="flex flex-col gap-1 border-b border-gray-100 dark:border-slate-800 pb-4">
-                <div className="flex justify-between items-start">
-                  <div>
+              <header className="flex flex-col gap-4 border-b border-gray-100 dark:border-slate-800 pb-4">
+                <div className="flex justify-between items-start gap-4">
+                  <div className="space-y-3">
                     <p className="text-sm font-semibold uppercase tracking-[0.3em] text-blue-600 dark:text-blue-400">
                       Conversation
                     </p>
-
-                    <div className="space-y-2 border-b border-gray-100 dark:border-slate-800 pb-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400">
-                            Ride requests
-                          </h2>
-                          <p className="text-xs text-gray-400">
-                            {bookingRequests.length}{' '}
-                            {bookingRequests.length === 1 ? 'request' : 'requests'}
-                          </p>
-                        </div>
-                        {bookingRequests.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setRideRequestsExpanded((prev) => !prev)}
-                            aria-pressed={rideRequestsExpanded}
-                            className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400 transition hover:text-blue-700 dark:hover:text-blue-300"
-                          >
-                            {rideRequestsExpanded ? 'Hide details' : 'Show requests'}
-                          </button>
-                        )}
-                      </div>
-
-                      {bookingRequestsLoading && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Loading ride requests…
-                        </p>
-                      )}
-                      {!bookingRequestsLoading &&
-                        bookingRequests.length > 0 &&
-                        rideRequestsExpanded && (
-                          <div className="space-y-3">
-                            {bookingRequests.map((request) => {
-                              const bookingId = request.id ?? request.booking_id;
-                              const isUserDriver = request.driver_id === user?.id;
-                              const canAct = isUserDriver
-                                ? request.status === 'pending'
-                                : request.status === 'invited';
-                              const canCancelRequest =
-                                !isUserDriver && request.status === 'pending';
-                              const otherPersonName = isUserDriver
-                                ? `${request.passenger?.first_name ?? 'Passenger'} ${request.passenger?.last_name ?? ''}`.trim()
-                                : `${request.driver?.first_name ?? 'Driver'} ${request.driver?.last_name ?? ''}`.trim();
-                              const pickupTime = request.pickup_time
-                                ? new Date(request.pickup_time).toLocaleTimeString([], {
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                  })
-                                : 'TBD';
-                              const actionInProgress = bookingId
-                                ? bookingActionLoadingIds.includes(bookingId)
-                                : false;
-
-                              return (
-                                <div
-                                  key={
-                                    bookingId ??
-                                    request.ride_id ??
-                                    `${request.driver_id}-${request.passenger_id}`
-                                  }
-                                  className="rounded-2xl border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 p-4 shadow-sm"
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                      <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                                        {otherPersonName || 'Passenger'} •{' '}
-                                        {request.status === 'pending' ? 'Request' : 'Invitation'}
-                                      </p>
-                                      <span className="text-xs font-semibold capitalize text-blue-600 dark:text-blue-400">
-                                        {request.status}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    Pickup: {request.pickup_location ?? 'TBD'} at {pickupTime}
-                                  </p>
-                                  {canAct && bookingId && (
-                                    <div className="mt-3 flex gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleBookingAction(bookingId, 'approve')}
-                                        disabled={actionInProgress}
-                                        className="flex-1 rounded-2xl border border-blue-400 bg-blue-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 transition disabled:opacity-70"
-                                      >
-                                        Approve
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleBookingAction(bookingId, 'deny')}
-                                        disabled={actionInProgress}
-                                        className="flex-1 rounded-2xl border border-red-400 bg-red-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-red-600 transition disabled:opacity-70"
-                                      >
-                                        Deny
-                                      </button>
-                                    </div>
-                                  )}
-                                  {canCancelRequest && bookingId && (
-                                    <div className="mt-3">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleBookingAction(bookingId, 'cancel')}
-                                        disabled={actionInProgress}
-                                        className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600 transition disabled:opacity-70"
-                                      >
-                                        Cancel request
-                                      </button>
-                                    </div>
-                                  )}
-                                  {!bookingId && (
-                                    <p className="mt-2 text-xs text-red-600">
-                                      Booking ID missing for this request.
-                                    </p>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      {!bookingRequestsLoading &&
-                        bookingRequests.length > 0 &&
-                        !rideRequestsExpanded && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Ride requests are hidden to keep the thread tidy on smaller screens.
-                          </p>
-                        )}
-                      {!bookingRequestsLoading && bookingRequests.length === 0 && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          No pending ride requests.
-                        </p>
-                      )}
+                    <div className="space-y-1">
+                      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                        {otherParticipantName}
+                      </h1>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {currentConversation.ride?.title ||
+                          (currentConversation.ride
+                            ? `${currentConversation.ride.start_location} to ${currentConversation.ride.end_location}`
+                            : 'Closed-loop message thread')}
+                      </p>
                     </div>
-
-                    <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-                      {otherParticipantName}
-                    </h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {currentConversation.ride?.title ||
-                        (currentConversation.ride
-                          ? `${currentConversation.ride.start_location} to ${currentConversation.ride.end_location}`
-                          : 'Closed-loop message thread')}
-                    </p>
                   </div>
                   {otherParticipant && (
-                    <div className="flex gap-2">
+                    <div className="flex flex-col items-end gap-2">
                       <a
                         href={`/profile/${otherParticipant.id}`}
                         target="_blank"
@@ -668,6 +541,131 @@ export default function MessagesPage() {
                       </button>
                     </div>
                   )}
+                </div>
+
+                <div className="space-y-2 pb-4 w-full">
+                  <div className="space-y-2 w-full">
+                    <div className="flex flex-col gap-2 w-full">
+                      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400">
+                        Ride requests
+                      </h2>
+                      {bookingRequests.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setRideRequestsExpanded((prev) => !prev)}
+                          aria-pressed={rideRequestsExpanded}
+                          className="flex w-full items-center justify-between gap-3 rounded-2xl border border-blue-200/80 bg-blue-50/80 px-4 py-3 text-left text-sm font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:border-slate-700 dark:bg-slate-800/60 dark:text-blue-300 dark:hover:border-slate-600 dark:hover:bg-slate-800/60 dark:focus-visible:ring-offset-slate-900"
+                        >
+                          <span className="flex-1 pr-3">{rideRequestDetailsToggleText}</span>
+                          <span className="text-xs font-normal text-blue-600 dark:text-blue-200">
+                            {rideRequestsExpanded ? 'Collapse' : 'Expand'}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+
+                    {bookingRequestsLoading && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Loading ride requests…
+                      </p>
+                    )}
+                    {!bookingRequestsLoading &&
+                      bookingRequests.length > 0 &&
+                      rideRequestsExpanded && (
+                        <div className="space-y-3">
+                          {bookingRequests.map((request) => {
+                            const bookingId = request.id ?? request.booking_id;
+                            const isUserDriver = request.driver_id === user?.id;
+                            const canAct = isUserDriver
+                              ? request.status === 'pending'
+                              : request.status === 'invited';
+                            const canCancelRequest = !isUserDriver && request.status === 'pending';
+                            const otherPersonName = isUserDriver
+                              ? `${request.passenger?.first_name ?? 'Passenger'} ${request.passenger?.last_name ?? ''}`.trim()
+                              : `${request.driver?.first_name ?? 'Driver'} ${request.driver?.last_name ?? ''}`.trim();
+                            const pickupTime = request.pickup_time
+                              ? new Date(request.pickup_time).toLocaleTimeString([], {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                })
+                              : 'TBD';
+                            const actionInProgress = bookingId
+                              ? bookingActionLoadingIds.includes(bookingId)
+                              : false;
+
+                            return (
+                              <div
+                                key={
+                                  bookingId ??
+                                  request.ride_id ??
+                                  `${request.driver_id}-${request.passenger_id}`
+                                }
+                                className="w-fit max-w-full rounded-2xl border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/60 p-4 shadow-sm"
+                              >
+                                <div className="flex items-center">
+                                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                                    {otherPersonName || 'Passenger'} •{' '}
+                                    {request.status === 'pending' ? 'Pending' : 'Invited'}
+                                  </p>
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                  Pickup: {request.pickup_location ?? 'TBD'} at {pickupTime}
+                                </p>
+                                {canAct && bookingId && (
+                                  <div className="mt-3 flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBookingAction(bookingId, 'approve')}
+                                      disabled={actionInProgress}
+                                      className="flex-1 rounded-2xl border border-blue-400 bg-blue-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-blue-600 transition disabled:opacity-70"
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBookingAction(bookingId, 'deny')}
+                                      disabled={actionInProgress}
+                                      className="flex-1 rounded-2xl border border-red-400 bg-red-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-red-600 transition disabled:opacity-70"
+                                    >
+                                      Deny
+                                    </button>
+                                  </div>
+                                )}
+                                {canCancelRequest && bookingId && (
+                                  <div className="mt-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBookingAction(bookingId, 'cancel')}
+                                      disabled={actionInProgress}
+                                      className="w-full rounded-2xl border border-gray-300 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600 transition disabled:opacity-70"
+                                    >
+                                      Cancel request
+                                    </button>
+                                  </div>
+                                )}
+                                {!bookingId && (
+                                  <p className="mt-2 text-xs text-red-600">
+                                    Booking ID missing for this request.
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    {!bookingRequestsLoading &&
+                      bookingRequests.length > 0 &&
+                      !rideRequestsExpanded && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Ride requests are hidden.
+                        </p>
+                      )}
+                    {!bookingRequestsLoading && bookingRequests.length === 0 && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        No pending ride requests.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </header>
 
