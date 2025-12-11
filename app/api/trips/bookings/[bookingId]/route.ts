@@ -30,7 +30,7 @@ type BookingStatus = (typeof VALID_BOOKING_STATUSES)[number];
  * Validates that a status value is a valid booking status.
  */
 function isValidBookingStatus(status: string): status is BookingStatus {
-  return (VALID_BOOKING_STATUSES as readonly string[]).includes(status);
+  return VALID_BOOKING_STATUSES.includes(status as BookingStatus);
 }
 
 type TripBookingRow = Database['public']['Tables']['trip_bookings']['Row'];
@@ -106,7 +106,7 @@ export async function PATCH(
       );
     }
 
-    const nextStatus = body.action === 'approve' ? 'confirmed' : 'cancelled';
+    const nextStatus: BookingStatus = body.action === 'approve' ? 'confirmed' : 'cancelled';
 
     const bookingRide = booking.ride;
     if (nextStatus === 'confirmed' && bookingRide && bookingRide.available_seats !== null) {
