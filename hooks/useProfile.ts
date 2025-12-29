@@ -213,6 +213,11 @@ export const useUpdateProfile = () => {
         Object.entries(privateData).filter(([, value]) => value !== undefined)
       );
 
+      // Clean undefined from socialData
+      const cleanSocialData = Object.fromEntries(
+        Object.entries(socialData).filter(([, value]) => value !== undefined)
+      );
+
       // 1. Update Public Profile
       const { data: profileResult, error: profileError } = await supabase
         .from('profiles')
@@ -245,21 +250,49 @@ export const useUpdateProfile = () => {
         }
       }
 
-      // 3. Update Socials (always upsert, even if all values are null - social links are optional)
-      const { error: socialError } = await supabase.from('profile_socials').upsert({
-        user_id: user.id,
-        ...socialData,
-      });
+      // 3. Update Socials (only if there are changes)
+      if (Object.keys(cleanSocialData).length > 0) {
+        // Fetch current socials to compare
+        const { data: currentSocials } = await supabase
+          .from('profile_socials')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
 
-      if (socialError) {
-        console.error('Failed to update social links:', socialError);
+        // Check if there are actual changes
+        const hasChanges = Object.keys(cleanSocialData).some((key) => {
+          const newValue = cleanSocialData[key as keyof typeof cleanSocialData];
+          const currentValue = currentSocials?.[key as keyof typeof currentSocials] ?? null;
+          // Compare values, treating null and undefined as equivalent
+          return newValue !== currentValue;
+        });
+
+        // Only update if there are actual changes
+        if (hasChanges) {
+          const { error: socialError } = await supabase.from('profile_socials').upsert({
+            user_id: user.id,
+            ...cleanSocialData,
+          });
+
+          if (socialError) {
+            console.error('Failed to update social links:', socialError);
+            throw new Error(socialError.message || 'Failed to update social links');
+          }
+        }
       }
 
-      // Return combined result (mocking it since we did multiple writes)
+      // Fetch final socials data for return
+      const { data: finalSocials } = await supabase
+        .from('profile_socials')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      // Return combined result
       return {
         ...profileResult,
         ...cleanPrivateData,
-        ...socialData,
+        ...(finalSocials ?? {}),
       } as UserProfile;
     },
     onSuccess: () => {
