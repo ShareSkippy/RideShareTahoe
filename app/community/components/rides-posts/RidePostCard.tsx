@@ -6,7 +6,6 @@ import { useState } from 'react';
 import type { RidePostType, ProfileType } from '@/app/community/types';
 import TripBookingModal from '@/components/trips/TripBookingModal';
 import { RidePostActions } from './RidePostActions';
-import { useHasActiveBooking } from '@/hooks/useHasActiveBooking';
 import { useProfileCompletionPrompt } from '@/hooks/useProfileCompletionPrompt';
 import { useUserProfile } from '@/hooks/useProfile';
 
@@ -87,7 +86,6 @@ export function RidePostCard({
 }: Readonly<RidePostCardProps>) {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const isOwner = currentUserId === post.poster_id;
-  const { hasBooking } = useHasActiveBooking(currentUserId, post.owner?.id);
   const { data: profile } = useUserProfile();
   const { showProfileCompletionPrompt, profileCompletionModal } = useProfileCompletionPrompt({
     toastMessage: 'Please finish your profile before contacting other riders.',
@@ -249,7 +247,6 @@ export function RidePostCard({
           deleting={deleting}
           onOpenBooking={() => handleRestrictedAction(() => setIsBookingOpen(true))}
           showBookingButton={!!showBookingButton}
-          hasActiveBooking={hasBooking}
         />
       </div>
 
