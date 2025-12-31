@@ -4,10 +4,13 @@ import {
   createUnauthorizedResponse,
   ensureProfileComplete,
 } from '@/libs/supabase/auth';
+import { rateLimit } from '@/libs/rateLimit';
 
 /**
- * Sends a new message between users.
- * Requires an active booking/ride context between the sender and recipient.
+ * Sends a new message between authenticated users.
+ * Rate limited to 20 messages per hour per user.
+ * Users must have a complete profile (first_name) to send messages.
+ * RLS policies enforce that users are not blocked from messaging each other.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -15,6 +18,26 @@ export async function POST(request: NextRequest) {
 
     if (authError || !user) {
       return createUnauthorizedResponse(authError);
+    }
+
+    // Check rate limit first (20 messages per hour per user)
+    const rateLimitCheck = rateLimit({
+      windowMs: 60 * 60 * 1000, // 1 hour
+      max: 20,
+      message: 'You have sent too many messages. Please try again later.',
+      keyGenerator: () => user.id, // Use user ID instead of IP
+    })(request);
+
+    if (!rateLimitCheck.success) {
+      return NextResponse.json(
+        { error: rateLimitCheck.error?.message || 'Rate limit exceeded' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimitCheck.error?.retryAfter || 3600),
+          },
+        }
+      );
     }
 
     const profileError = await ensureProfileComplete(supabase, user.id, 'sending messages');
@@ -27,29 +50,6 @@ export async function POST(request: NextRequest) {
         { error: 'Missing required fields' },
         {
           status: 400,
-        }
-      );
-    }
-
-    // Verify users have an active booking together
-    const { data: booking, error: bookingError } = await supabase
-      .from('trip_bookings')
-      .select('id, status')
-      .or(
-        `and(driver_id.eq.${user.id},passenger_id.eq.${recipient_id}),and(driver_id.eq.${recipient_id},passenger_id.eq.${user.id})`
-      )
-      .in('status', ['pending', 'confirmed', 'invited'])
-      .maybeSingle();
-
-    if (bookingError) {
-      console.error('Error checking booking:', bookingError);
-    }
-
-    if (!booking) {
-      return NextResponse.json(
-        { error: 'You must have a pending or scheduled ride with this user to message them' },
-        {
-          status: 403,
         }
       );
     }
