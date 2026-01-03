@@ -10,7 +10,10 @@ import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 import UserReviews from '@/components/UserReviews';
 import ReviewModal from '@/components/ReviewModal';
 import ReportModal from '@/components/ReportModal';
+import MessageModal from '@/components/MessageModal';
+import BlockModal from '@/components/BlockModal';
 import VehicleDisplay from '@/components/vehicles/VehicleDisplay';
+import { useIsBlocked } from '@/hooks/useIsBlocked';
 
 interface Profile {
   id: string;
@@ -62,6 +65,9 @@ export default function PublicProfilePage() {
   const [pendingReviewForModal, setPendingReviewForModal] = useState<PendingReview | null>(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const { isBlocked: isUserBlocked, loading: checkingBlockStatus } = useIsBlocked(profileId);
 
   const loadProfile = useCallback(async () => {
     if (!profileId) return;
@@ -276,13 +282,28 @@ export default function PublicProfilePage() {
 
               {/* Report Button */}
               {currentUser.id !== profile.id && (
-                <button
-                  onClick={() => setIsReportModalOpen(true)}
-                  className="ml-2 text-red-600 hover:text-red-700 font-medium text-sm transition-colors"
-                  title="Report User"
-                >
-                  ⚠️ Report
-                </button>
+                <>
+                  <button
+                    onClick={() => setIsMessageModalOpen(true)}
+                    className="ml-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    💬 Message
+                  </button>
+                  <button
+                    onClick={() => setIsBlockModalOpen(true)}
+                    disabled={checkingBlockStatus}
+                    className="ml-2 bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                  >
+                    {isUserBlocked ? '🔓 Unblock' : '🚫 Block'}
+                  </button>
+                  <button
+                    onClick={() => setIsReportModalOpen(true)}
+                    className="ml-2 text-red-600 hover:text-red-700 font-medium text-sm transition-colors"
+                    title="Report User"
+                  >
+                    ⚠️ Report
+                  </button>
+                </>
               )}
 
               {currentUser.id === profile.id && (
@@ -353,7 +374,6 @@ export default function PublicProfilePage() {
             </div>
           )}
 
-          {/* Social Links */}
           {/* Social Links */}
           {socials &&
             (socials.facebook_url ||
@@ -433,6 +453,27 @@ export default function PublicProfilePage() {
           }}
         />
       )}
+
+      {/* Message Modal */}
+      <MessageModal
+        isOpen={isMessageModalOpen}
+        onClose={() => setIsMessageModalOpen(false)}
+        recipient={profile ? { id: profile.id, first_name: profile.first_name } : null}
+        ridePost={null}
+      />
+
+      {/* Block Modal */}
+      <BlockModal
+        isOpen={isBlockModalOpen}
+        onClose={() => setIsBlockModalOpen(false)}
+        targetUserId={profile.id}
+        targetUserName={`${profile.first_name} ${profile.last_name}`}
+        isCurrentlyBlocked={isUserBlocked}
+        onBlockStateChanged={() => {
+          setIsBlockModalOpen(false);
+          globalThis.window.location.reload();
+        }}
+      />
 
       {/* Report Modal */}
       <ReportModal
