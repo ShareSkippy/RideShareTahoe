@@ -151,8 +151,9 @@ async function processCodeExchangeAndProfileUpdate(
   // 5. Welcome Email
   if (isNewUser) {
     try {
-      const emailUrl = `${finalRedirectBaseUrl}/api/emails/send-welcome`;
-      const emailResponse = await fetch(emailUrl, {
+      // Use env var to avoid SSRF - don't derive URL from request
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://ridesharetahoe.com';
+      const emailResponse = await fetch(`${appUrl}/api/emails/send-welcome`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user.id }),
