@@ -43,7 +43,7 @@ describe('POST /api/users/unblock', () => {
     expect(res.status).toBe(200);
   });
 
-  it('returns 404 when no block exists', async () => {
+  it('returns 200 when no block exists (idempotent)', async () => {
     const user = { id: validUserId };
     const blockedId = validBlockedId;
 
@@ -69,8 +69,9 @@ describe('POST /api/users/unblock', () => {
 
     const res = await POST(request);
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.error).toBe('Block not found');
+    expect(json.success).toBe(true);
+    expect(json.message).toBe('User was not blocked');
   });
 });
