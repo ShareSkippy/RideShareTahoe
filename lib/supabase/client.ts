@@ -1,22 +1,16 @@
-'use client';
-
 import { createBrowserClient } from '@supabase/ssr';
-import { getCookieOptions } from '@/libs/cookieOptions';
 
-export const createClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!supabaseUrl || !supabasePublishableKey) {
-    throw new Error('Supabase configuration is missing. Please check your environment variables.');
-  }
-
-  return createBrowserClient(supabaseUrl, supabasePublishableKey, {
-    cookieOptions: getCookieOptions(),
-    global: {
-      headers: {
-        Connection: 'keep-alive',
-      },
-    },
-  });
-};
+/**
+ * Create a Supabase browser client using publishable environment variables.
+ *
+ * This helper wraps `createBrowserClient` so callers don't need to repeatedly
+ * pass the environment variables where the client is used in the browser.
+ *
+ * @returns A Supabase client instance created with `createBrowserClient`.
+ */
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+  );
+}
