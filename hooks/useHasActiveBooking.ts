@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/libs/supabase';
+import { supabase } from '@/lib/supabase';
 
 /**
  * Hook to check if the current user has an active booking with another user.

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { createClient } from '@/libs/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import MessageModal from '@/components/MessageModal';
 import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 import { useCommunityRides } from '@/app/community/hooks/useCommunityRides';

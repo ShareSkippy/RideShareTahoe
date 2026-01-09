@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { supabase } from '@/libs/supabase';
+import { supabase } from '@/lib/supabase';
 // Import the hook so we can cast the mock
 import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 import MessagesPage from './page';
@@ -21,7 +21,7 @@ jest.mock('@/libs/validation', () => ({
   }),
 }));
 
-jest.mock('@/libs/supabase', () => ({
+jest.mock('@/lib/supabase', () => ({
   supabase: {
     from: jest.fn(() => ({
       select: jest.fn(() => ({

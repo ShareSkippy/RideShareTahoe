@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/libs/supabase';
+import { supabase } from '@/lib/supabase';
 import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 import { validateUUID } from '@/libs/validation';
 
