@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, createUnauthorizedResponse } from '@/libs/supabase/auth';
+import { getAuthenticatedUser, createUnauthorizedResponse } from '@/lib/supabase/auth';
 import { sendEmail } from '@/libs/resend';
 import { strictRateLimit } from '@/libs/rateLimit';
 
@@ -50,20 +50,13 @@ export async function POST(request: NextRequest) {
     isAdmin = true;
   } else if (supabase) {
     // Try to fetch user role from database
-    const { data, error } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single();
+    const { data, error } = await supabase.from('users').select('role').eq('id', user.id).single();
     if (!error && data && data.role === 'admin') {
       isAdmin = true;
     }
   }
   if (!isAdmin) {
-    return NextResponse.json(
-      { error: 'Forbidden: Admin access required' },
-      { status: 403 }
-    );
+    return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
   }
   try {
     // Apply rate limiting
