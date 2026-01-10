@@ -3,7 +3,7 @@ import {
   getAuthenticatedUser,
   createUnauthorizedResponse,
   ensureProfileComplete,
-} from '@/libs/supabase/auth';
+} from '@/lib/supabase/auth';
 
 /**
  * Sends a new message between users.

@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/libs/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 import { validateUUID } from '@/libs/validation';
 
@@ -84,6 +84,7 @@ function buildSafeOrFilter(
  * Displays the authenticated user's messaging dashboard, including conversations and the thread view.
  */
 export default function MessagesPage() {
+  const supabase = createClient();
   const { user, isLoading: authLoading } = useProtectedRoute();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<null | string>(null);
@@ -165,7 +166,7 @@ export default function MessagesPage() {
     } finally {
       setConversationsLoading(false);
     }
-  }, [user]);
+  }, [supabase, user]);
 
   const loadMessages = useCallback(async () => {
     if (!currentConversation || !user) {
@@ -207,7 +208,7 @@ export default function MessagesPage() {
     } finally {
       setMessagesLoading(false);
     }
-  }, [currentConversation, user]);
+  }, [currentConversation, supabase, user]);
 
   const fetchBookingRequests = useCallback(async () => {
     if (!currentConversation || !user) {
@@ -276,7 +277,7 @@ export default function MessagesPage() {
     } finally {
       setBookingRequestsLoading(false);
     }
-  }, [currentConversation, user]);
+  }, [currentConversation, supabase, user]);
 
   useEffect(() => {
     if (!user || authLoading) {
@@ -316,7 +317,7 @@ export default function MessagesPage() {
     };
 
     markAllMessagesRead();
-  }, [authLoading, user]);
+  }, [authLoading, supabase, user]);
 
   const markMessagesAsRead = useCallback(async () => {
     if (!currentConversation || !user) {
@@ -342,7 +343,7 @@ export default function MessagesPage() {
     if (error) {
       console.error('Error marking messages as read:', error);
     }
-  }, [currentConversation, user, messages]);
+  }, [currentConversation, supabase, messages, user]);
 
   useEffect(() => {
     if (user && messages.some((m) => !m.is_read && m.sender_id !== user.id)) {
@@ -369,7 +370,7 @@ export default function MessagesPage() {
       subscription?.unsubscribe?.();
       supabase.removeChannel(channel);
     };
-  }, [currentConversation, loadMessages]);
+  }, [currentConversation, supabase, loadMessages]);
 
   const handleSendMessage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
