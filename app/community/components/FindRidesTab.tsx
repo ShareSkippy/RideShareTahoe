@@ -14,6 +14,7 @@ import { SectionError } from './common/SectionError';
 import { CommunityMembersList } from './members';
 import { RIDES_PAGE_SIZE } from '../constants';
 import type { RidePostType, CommunityUser, LocationFilterType, ProfileType } from '../types';
+import PostDetailModal from '@/app/community/components/PostDetailModal';
 
 interface RidesTabProps {
   user: CommunityUser | null;
@@ -44,6 +45,7 @@ export function RidesTab({
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPost, setSelectedPost] = useState<RidePostType | null>(null);
 
   // Location filter state
   const [departureFilter, setDepartureFilter] = useState<LocationFilterType | null>(null);

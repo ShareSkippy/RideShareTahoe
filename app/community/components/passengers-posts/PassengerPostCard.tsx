@@ -13,6 +13,7 @@ interface PassengerPostCardProps {
   // eslint-disable-next-line no-unused-vars
   onDelete?: (postId: string) => void;
   deleting?: boolean;
+  onViewDetails: () => void;
 }
 
 /**
@@ -20,12 +21,14 @@ interface PassengerPostCardProps {
  *
  * @param props - The data to show and callbacks for messaging or hiding a post.
  */
+
 export function PassengerPostCard({
   post,
   currentUserId,
   onMessage,
   onDelete,
   deleting,
+  onViewDetails,
 }: Readonly<PassengerPostCardProps>) {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const isOwner = currentUserId === post.poster_id;
@@ -33,6 +36,23 @@ export function PassengerPostCard({
 
   const badgeStyles = 'bg-green-100 text-green-800';
   const badgeLabel = '👋 Passenger';
+  const departureDateLabel = formatDateLabel(post.departure_date);
+  const departureTimeLabel = formatTimeLabel(post.departure_time);
+  const returnDateLabel = formatDateLabel(post.return_date);
+
+  const { data: profile } = useUserProfile();
+  const { showProfileCompletionPrompt, profileCompletionModal } = useProfileCompletionPrompt({
+    toastMessage: 'Please finish your profile before contacting other riders.',
+    closeRedirect: null,
+  });
+
+  const handleRestrictedAction = (action: () => void) => {
+    if (!profile?.first_name) {
+      showProfileCompletionPrompt();
+      return;
+    }
+    action();
+  };
 
   // Hide posts from blocked users (unless viewing own post)
   if (!isOwner && isBlocked) {
@@ -76,10 +96,9 @@ export function PassengerPostCard({
               </span>
             )}
             <span className="text-xs text-gray-500 dark:text-gray-400">
-              {new Date(post.departure_date).toLocaleDateString()}
-              {isCombinedRoundTrip &&
-                post.return_date &&
-                ` - ${new Date(post.return_date).toLocaleDateString()}`}
+              {departureDateLabel ?? 'Date TBD'}
+              {departureTimeLabel && ` · ${departureTimeLabel}`}
+              {isCombinedRoundTrip && returnDateLabel && ` - ${returnDateLabel}`}
             </span>
           </div>
         </div>
@@ -106,6 +125,16 @@ export function PassengerPostCard({
           <span className="font-medium w-12 text-gray-500 dark:text-gray-400">To:</span>
           <span className="truncate flex-1">{post.end_location}</span>
         </div>
+      </div>
+
+      {/*Details button*/}
+      <div>
+        <button
+          onClick={onViewDetails}
+          className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          View Details &rarr;
+        </button>
       </div>
 
       {/* Owner Info (if not owner) */}
@@ -178,7 +207,7 @@ export function PassengerPostCard({
                 Message
               </button>
               <button
-                onClick={() => setIsInviteModalOpen(true)}
+                onClick={() => handleRestrictedAction(() => setIsInviteModalOpen(true))}
                 className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm hover:bg-indigo-700 transition-colors flex-1"
               >
                 Invite
@@ -197,6 +226,8 @@ export function PassengerPostCard({
           user={{ id: currentUserId }}
         />
       )}
+
+      {profileCompletionModal}
     </div>
   );
 }
