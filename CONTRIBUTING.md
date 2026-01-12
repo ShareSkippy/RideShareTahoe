@@ -18,7 +18,7 @@ npm run test
 npm run build
 ```
 
-Update the local database when migrations change:
+Apply new database migrations to your local database when migration files change:
 
 ```bash
 npx supabase migration up
