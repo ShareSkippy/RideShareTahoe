@@ -17,6 +17,23 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient();
 
+    // Check if welcome email was already sent (idempotent check)
+    const { data: existingWelcomeEmail } = await supabase
+      .from('email_events')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('email_type', 'welcome')
+      .maybeSingle();
+
+    if (existingWelcomeEmail) {
+      console.log(`Welcome email already sent to user ${userId}, skipping`);
+      return NextResponse.json({
+        success: true,
+        message: 'Welcome email already sent (skipped duplicate)',
+        skipped: true,
+      });
+    }
+
     // Get user profile data
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -24,7 +41,7 @@ export async function POST(request: NextRequest) {
       .eq('id', userId)
       .single();
 
-    // Get user email from private info table
+    // Get user email from private info table (email is NOT in profiles table)
     const { data: privateInfo, error: privateError } = await supabase
       .from('user_private_info')
       .select('email')
@@ -48,19 +65,22 @@ export async function POST(request: NextRequest) {
       metadata: { source: 'welcome_email_trigger' },
     });
 
-    // Send welcome email (idempotent)
+    // Send welcome email (the sendEmail function should record to email_events)
     await sendEmail({
       userId,
       to: privateInfo.email,
       emailType: 'welcome',
       payload: {
         userName: profile.first_name || '',
+        // NEXT_PUBLIC_APP_URL is fine here - it's for display in email, not server-side fetch
         appUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://ridesharetahoe.com',
       },
     });
 
     // Schedule nurture email for 3 days later
     await scheduleNurtureEmail(userId);
+
+    console.log(`✅ Welcome email sent to user ${userId}`);
 
     return NextResponse.json({
       success: true,
