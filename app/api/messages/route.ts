@@ -4,16 +4,10 @@ import {
   createUnauthorizedResponse,
   ensureProfileComplete,
 } from '@/libs/supabase/auth';
-import { checkSupabaseRateLimit } from '@/libs/rateLimit';
-import { isValidUUID } from '@/libs/validation';
-
-const MAX_MESSAGE_LENGTH = 5000;
 
 /**
- * Sends a new message between authenticated users.
- * Rate limited to 20 messages per hour per user.
- * Users must have a complete profile (first_name) to send messages.
- * RLS policies enforce that users are not blocked from messaging each other.
+ * Sends a new message between users.
+ * Any authenticated user with a complete profile can message any other user.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -23,84 +17,63 @@ export async function POST(request: NextRequest) {
       return createUnauthorizedResponse(authError);
     }
 
-    // Check profile completion first - don't consume rate limit for incomplete profiles
     const profileError = await ensureProfileComplete(supabase, user.id, 'sending messages');
     if (profileError) return profileError;
-
-    // Check rate limit (20 messages per hour per user)
-    // Uses database-backed rate limiting for serverless compatibility
-    const rateLimitCheck = await checkSupabaseRateLimit(supabase, user.id, 'messages', {
-      maxRequests: 20,
-      windowSeconds: 3600,
-      message: 'You have sent too many messages. Please try again later.',
-    });
-
-    if (!rateLimitCheck.success) {
-      return NextResponse.json(
-        { error: rateLimitCheck.error?.message || 'Rate limit exceeded' },
-        {
-          status: 429,
-          headers: {
-            'Retry-After': String(rateLimitCheck.error?.retryAfter || 3600),
-          },
-        }
-      );
-    }
 
     const { recipient_id, content, ride_post_id } = await request.json();
 
     if (!recipient_id || !content) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-    }
-
-    // Validate UUID format to prevent injection
-    if (!isValidUUID(recipient_id)) {
-      return NextResponse.json({ error: 'Invalid recipient_id format' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        {
+          status: 400,
+        }
+      );
     }
 
     // Prevent self-messaging
     if (recipient_id === user.id) {
-      return NextResponse.json({ error: 'You cannot message yourself' }, { status: 400 });
-    }
-
-    if (ride_post_id && !isValidUUID(ride_post_id)) {
-      return NextResponse.json({ error: 'Invalid ride_post_id format' }, { status: 400 });
-    }
-
-    // Validate content - check raw length first to prevent DoS with large payloads
-    if (typeof content !== 'string') {
-      return NextResponse.json({ error: 'Message content must be a string' }, { status: 400 });
-    }
-
-    if (content.length > MAX_MESSAGE_LENGTH) {
       return NextResponse.json(
-        { error: `Message content cannot exceed ${MAX_MESSAGE_LENGTH} characters` },
-        { status: 400 }
+        { error: 'You cannot send a message to yourself' },
+        {
+          status: 400,
+        }
       );
     }
 
-    const trimmedContent = content.trim();
-    if (!trimmedContent) {
-      return NextResponse.json({ error: 'Message content cannot be empty' }, { status: 400 });
+    // Verify recipient exists
+    const { data: recipient, error: recipientError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', recipient_id)
+      .single();
+
+    if (recipientError || !recipient) {
+      return NextResponse.json(
+        { error: 'Recipient not found' },
+        {
+          status: 404,
+        }
+      );
     }
 
-    // Find existing conversation with optimized query
-    // Check both orderings: (user, recipient) or (recipient, user) AND filter by ride_id
-    let conversationQuery = supabase
+    // NOTE: Booking requirement removed - any user can message any other user
+    // TODO: Add blocking check once user_blocks table is implemented
+
+    let query = supabase
       .from('conversations')
       .select('*')
       .or(
         `and(participant1_id.eq.${user.id},participant2_id.eq.${recipient_id}),and(participant1_id.eq.${recipient_id},participant2_id.eq.${user.id})`
       );
 
-    // Add ride_id filter at the database level for efficiency
     if (ride_post_id) {
-      conversationQuery = conversationQuery.eq('ride_id', ride_post_id);
+      query = query.eq('ride_id', ride_post_id);
     } else {
-      conversationQuery = conversationQuery.is('ride_id', null);
+      query = query.is('ride_id', null);
     }
 
-    const { data: existingConversation } = await conversationQuery.maybeSingle();
+    const { data: existingConversation } = await query.maybeSingle();
 
     let conversationId;
 
@@ -108,16 +81,12 @@ export async function POST(request: NextRequest) {
       conversationId = existingConversation.id;
 
       // Update the last_message_at timestamp
-      const { error: updateError } = await supabase
+      await supabase
         .from('conversations')
         .update({ last_message_at: new Date().toISOString() })
         .eq('id', conversationId);
-
-      if (updateError) {
-        console.error('Failed to update last_message_at:', updateError);
-      }
     } else {
-      // Create a new conversation - handle potential race condition
+      // Create a new conversation
       const { data: newConversation, error: newConvError } = await supabase
         .from('conversations')
         .insert({
@@ -128,36 +97,8 @@ export async function POST(request: NextRequest) {
         .select()
         .single();
 
-      if (newConvError) {
-        // If unique constraint violation, another request created the conversation
-        // Try to fetch it again with optimized query
-        if (newConvError.code === '23505') {
-          let retryQuery = supabase
-            .from('conversations')
-            .select('*')
-            .or(
-              `and(participant1_id.eq.${user.id},participant2_id.eq.${recipient_id}),and(participant1_id.eq.${recipient_id},participant2_id.eq.${user.id})`
-            );
-
-          if (ride_post_id) {
-            retryQuery = retryQuery.eq('ride_id', ride_post_id);
-          } else {
-            retryQuery = retryQuery.is('ride_id', null);
-          }
-
-          const { data: retryConversation } = await retryQuery.maybeSingle();
-
-          if (retryConversation) {
-            conversationId = retryConversation.id;
-          } else {
-            throw newConvError;
-          }
-        } else {
-          throw newConvError;
-        }
-      } else {
-        conversationId = newConversation.id;
-      }
+      if (newConvError) throw newConvError;
+      conversationId = newConversation.id;
     }
 
     // Send the message
@@ -169,7 +110,7 @@ export async function POST(request: NextRequest) {
         ride_id: ride_post_id || null,
         conversation_id: conversationId,
         subject: null,
-        content: trimmedContent,
+        content: content,
       })
       .select()
       .single();
@@ -186,7 +127,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             recipientId: recipient_id,
             senderId: user.id,
-            messagePreview: trimmedContent.substring(0, 100),
+            messagePreview: content.substring(0, 100),
             messageId: message.id,
             threadId: conversationId,
           }),
@@ -230,15 +171,6 @@ export async function GET(request: NextRequest) {
     if (!conversationId) {
       return NextResponse.json(
         { error: 'Conversation ID required' },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (!isValidUUID(conversationId)) {
-      return NextResponse.json(
-        { error: 'Invalid conversation_id format' },
         {
           status: 400,
         }
