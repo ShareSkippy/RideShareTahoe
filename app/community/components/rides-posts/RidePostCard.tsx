@@ -6,9 +6,9 @@ import { useState } from 'react';
 import type { RidePostType, ProfileType } from '@/app/community/types';
 import TripBookingModal from '@/components/trips/TripBookingModal';
 import { RidePostActions } from './RidePostActions';
-import { useHasActiveBooking } from '@/hooks/useHasActiveBooking';
 import { useProfileCompletionPrompt } from '@/hooks/useProfileCompletionPrompt';
 import { useUserProfile } from '@/hooks/useProfile';
+import { useIsBlocked } from '@/hooks/useIsBlocked';
 
 interface RidePostCardProps {
   post: RidePostType;
@@ -87,8 +87,8 @@ export function RidePostCard({
 }: Readonly<RidePostCardProps>) {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const isOwner = currentUserId === post.poster_id;
-  const { hasBooking } = useHasActiveBooking(currentUserId, post.owner?.id);
   const { data: profile } = useUserProfile();
+  const { isBlocked } = useIsBlocked(post.owner?.id);
   const { showProfileCompletionPrompt, profileCompletionModal } = useProfileCompletionPrompt({
     toastMessage: 'Please finish your profile before contacting other riders.',
     closeRedirect: null,
@@ -101,6 +101,11 @@ export function RidePostCard({
     }
     action();
   };
+
+  // Hide posts from blocked users (unless viewing own post)
+  if (!isOwner && isBlocked) {
+    return null;
+  }
 
   const cardBackground = 'bg-white dark:bg-slate-900';
   const { styles: badgeStyles, label: badgeLabel } = getBadgeConfig(post.posting_type);
@@ -168,9 +173,10 @@ export function RidePostCard({
             {post.posting_type === 'driver' && (
               <>
                 <span className="text-lg font-bold text-green-600 dark:text-green-400">
-                  {post.price_per_seat ? `$${post.price_per_seat}` : 'Free'}
+                  {post.price_per_seat ? `$${post.price_per_seat}/seat` : 'Free'}
                 </span>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {post.price_per_seat ? 'cost share · ' : ''}
                   {post.available_seats ?? post.total_seats ?? 0} seats left
                 </span>
               </>
@@ -249,7 +255,6 @@ export function RidePostCard({
           deleting={deleting}
           onOpenBooking={() => handleRestrictedAction(() => setIsBookingOpen(true))}
           showBookingButton={!!showBookingButton}
-          hasActiveBooking={hasBooking}
         />
       </div>
 
