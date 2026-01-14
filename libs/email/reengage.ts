@@ -63,23 +63,12 @@ export async function processReengageEmails(): Promise<ReengageResult> {
       const userEmail = privateInfo?.email;
 
       if (!userEmail) {
+        console.log(`Skipping user ${user.id} - no email found`);
         skipped++;
         continue;
       }
 
       try {
-        // Get email from joined user_private_info
-        const privateInfo = Array.isArray(user.user_private_info)
-          ? user.user_private_info[0]
-          : user.user_private_info;
-        const userEmail = privateInfo?.email;
-
-        if (!userEmail) {
-          console.log(`Skipping user ${user.id} - no email found`);
-          skipped++;
-          continue;
-        }
-
         // Check if user should receive re-engagement email
         const shouldSend = await shouldSendReengageEmail(user.id);
 
@@ -197,14 +186,6 @@ export async function getReengageCandidates(): Promise<
       const mostRecentActivity = Array.isArray(user.user_activity)
         ? user.user_activity[0]
         : user.user_activity;
-
-      // Get email from joined user_private_info
-      const privateInfo = Array.isArray(user.user_private_info)
-        ? user.user_private_info[0]
-        : user.user_private_info;
-      const userEmail = privateInfo?.email;
-
-      if (!userEmail) continue; // Skip users without email
 
       userMap.set(user.id, {
         id: user.id,
