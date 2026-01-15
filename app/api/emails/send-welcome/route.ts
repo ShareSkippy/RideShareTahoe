@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
+    const supabase = await createClient('service_role');
 
     // Check if welcome email was already sent (idempotent check)
     const { data: existingWelcomeEmail } = await supabase

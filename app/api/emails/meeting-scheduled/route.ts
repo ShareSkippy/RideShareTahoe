@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
+    const supabase = await createClient('service_role');
 
     // Get meeting details (without email - email is in user_private_info)
     const { data: meeting, error: meetingError } = await supabase

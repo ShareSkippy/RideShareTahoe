@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
+    const supabase = await createClient('service_role');
 
     // Verify meeting exists and user has access
     const { data: meeting, error: meetingError } = await supabase

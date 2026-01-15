@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const supabase = await createClient();
+    const supabase = await createClient('service_role');
 
     // Get recipient data with email from user_private_info
     const recipient = await getUserWithEmail(supabase, recipientId);
