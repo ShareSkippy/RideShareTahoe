@@ -128,6 +128,22 @@ async function processCodeExchangeAndProfileUpdate(
       : `👤 EXISTING USER - ${sanitizeForLog(user.id)}`
   );
 
+  // Upsert user's email into user_private_info (required for email sending)
+  // The email comes from Supabase Auth (populated by OAuth provider)
+  if (user.email) {
+    const { error: privateInfoError } = await supabase
+      .from('user_private_info')
+      .upsert(
+        { id: user.id, email: user.email },
+        { onConflict: 'id' }
+      );
+    if (privateInfoError) {
+      console.error('❌ Failed to upsert user_private_info:', privateInfoError);
+    } else {
+      console.log('✅ User email stored in user_private_info');
+    }
+  }
+
   // Fetch private info for checking completeness (phone)
   const { data: privateInfo } = await supabase
     .from('user_private_info')
