@@ -1,14 +1,9 @@
 import { getAppUrl, getUserWithEmail, sendEmail } from '@/libs/email';
 import { createClient } from '@/libs/supabase/server';
-import { NextRequest, NextResponse } from 'next/server';
+import { internalOnly } from '@/libs/api/internalOnly';
+import { NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
-  // Verify internal API key to prevent external abuse
-  const apiKey = request.headers.get('x-internal-api-key');
-  if (apiKey !== process.env.INTERNAL_API_KEY) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
+export const POST = internalOnly(async (request) => {
   try {
     const { meetingId, userId } = await request.json();
 
@@ -92,4 +87,4 @@ export async function POST(request: NextRequest) {
       }
     );
   }
-}
+});
