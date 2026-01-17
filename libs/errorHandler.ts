@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { apiRateLimit } from '@/libs/rateLimit';
 
+/** @public */
 export class APIError extends Error {
   statusCode: number;
   code: string | null;
@@ -20,6 +21,7 @@ interface ErrorLike {
   statusCode?: number;
 }
 
+/** @public */
 export const handleAPIError = (err: unknown, request: Request) => {
   const error = err as ErrorLike;
   console.error('API Error:', {
@@ -124,7 +126,16 @@ export const withErrorHandling = <TContext>(
   };
 };
 
-// Common error responses
+/**
+ * Creates a standardized error response for API errors.
+ *
+ * @param message The error message to return.
+ * @param status The HTTP status code (default is 500).
+ * @param code An optional error code.
+ * @returns A Response object with the error details.
+ *
+ * @public
+ */
 export const createErrorResponse = (
   message: string,
   status: number = 500,
@@ -145,6 +156,15 @@ export const createErrorResponse = (
   );
 };
 
+/**
+ * Creates a standardized success response for API calls.
+ *
+ * @param data The data to include in the response.
+ * @param status The HTTP status code (default is 200).
+ * @returns A Response object with the success data.
+ *
+ * @public
+ */
 export const createSuccessResponse = (data: unknown, status: number = 200) => {
   return new Response(JSON.stringify(data), {
     status,
