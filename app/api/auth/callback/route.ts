@@ -244,31 +244,29 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const code: string | null = requestUrl.searchParams.get('code');
   const error: string | null = requestUrl.searchParams.get('error');
   const errorDescription: string | null = requestUrl.searchParams.get('error_description');
+  const appUrl = getAppUrl();
 
   if (error) {
     console.error('OAuth error:', error, errorDescription);
-    return NextResponse.redirect(new URL('/login?error=' + encodeURIComponent(error), getAppUrl()));
+    return NextResponse.redirect(new URL('/login?error=' + encodeURIComponent(error), appUrl));
   }
 
-  if (code) {
-    try {
-      const rl = authRateLimit(req as unknown as Request);
-      if (!rl.success) {
-        return NextResponse.redirect(new URL('/login?error=rate_limited', getAppUrl()));
-      }
-    } catch (e) {
-      console.error('Auth rate limit check failed:', e);
-    }
-    try {
-      return await processCodeExchangeAndProfileUpdate(requestUrl, code);
-    } catch (error) {
-      console.error('Unexpected error during session exchange:', error);
-      return NextResponse.redirect(new URL('/login?error=unexpected_error', getAppUrl()));
-    }
+  if (!code) {
+    return NextResponse.redirect(new URL('/login', appUrl));
   }
 
-  console.log('⚠️ No code present - Redirecting to login');
-  return NextResponse.redirect(new URL('/login', getAppUrl()));
+  const rl = authRateLimit(req as unknown as Request);
+
+  if (!rl.success) {
+    return NextResponse.redirect(new URL('/login?error=rate_limited', appUrl));
+  }
+
+  try {
+    return await processCodeExchangeAndProfileUpdate(requestUrl, code);
+  } catch (err) {
+    console.error('Critical Auth Failure:', err);
+    return NextResponse.redirect(new URL('/login?error=server_error', appUrl));
+  }
 }
 
 // #endregion
