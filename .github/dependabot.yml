@@ -23,6 +23,11 @@ updates:
     labels:
       - 'dependencies'
       - 'npm'
+    groups:
+      stylelint-ecosystem:
+        patterns:
+          - "stylelint"
+          - "stylelint-config-*"
 
     # Group patch updates together to reduce PR noise
     groups:
