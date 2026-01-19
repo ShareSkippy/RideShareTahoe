@@ -105,7 +105,9 @@ async function processCodeExchangeAndProfileUpdate(
   }
 
   const user: User = data.user;
-  const finalRedirectBaseUrl: string = requestUrl.origin;
+  // Use a trusted application URL rather than the incoming request origin
+  // to avoid open-redirects via manipulated Host headers.
+  const finalRedirectBaseUrl: string = getAppUrl();
 
   // 3. Profile Fetch and Data Merge
   const userMetadata: UserMetadata = user.user_metadata || {};
@@ -240,9 +242,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // 1. Handle OAuth Errors (Guard Clause)
   if (error) {
     console.error('OAuth error:', error, errorDescription);
-    return NextResponse.redirect(
-      new URL('/login?error=' + encodeURIComponent(error), requestUrl.origin)
-    );
+    // Use trusted app URL for redirects to avoid relying on request origin
+    return NextResponse.redirect(new URL('/login?error=' + encodeURIComponent(error), getAppUrl()));
   }
 
   // 2. Process Authentication Code
@@ -251,8 +252,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     try {
       const rl = authRateLimit(req as unknown as Request);
       if (!rl.success) {
-        // Redirect to login with rate-limited error
-        return NextResponse.redirect(new URL('/login?error=rate_limited', requestUrl.origin));
+        // Redirect to login with rate-limited error using trusted app URL
+        return NextResponse.redirect(new URL('/login?error=rate_limited', getAppUrl()));
       }
     } catch (e) {
       console.error('Auth rate limit check failed:', e);
@@ -262,11 +263,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     } catch (error) {
       // Catch unexpected errors
       console.error('Unexpected error during session exchange:', error);
-      return NextResponse.redirect(new URL('/login?error=unexpected_error', requestUrl.origin));
+      return NextResponse.redirect(new URL('/login?error=unexpected_error', getAppUrl()));
     }
   }
 
   // 3. Fallback: No Code Present
   console.log('⚠️ No code present - Redirecting to login');
-  return NextResponse.redirect(new URL('/login', requestUrl.origin));
+  return NextResponse.redirect(new URL('/login', getAppUrl()));
 }
