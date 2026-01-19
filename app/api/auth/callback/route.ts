@@ -249,7 +249,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   if (error) {
     const safeError = getSafeError(error);
-    console.error('OAuth error:', safeError, errorDescription);
+    const safeErrorDescription = errorDescription ? sanitizeForLog(errorDescription) : null;
+    console.error('OAuth error:', safeError, safeErrorDescription);
     return NextResponse.redirect(new URL('/login?error=' + encodeURIComponent(safeError), appUrl));
   }
 
