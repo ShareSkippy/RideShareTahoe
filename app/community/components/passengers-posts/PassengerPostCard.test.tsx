@@ -1,9 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { PassengerPostCard } from './PassengerPostCard';
-import { useHasActiveBooking } from '@/hooks/useHasActiveBooking';
 import { useUserProfile } from '@/hooks/useProfile';
 import type { RidePostType } from '../../types';
-import { useUserProfile } from '@/hooks/useProfile';
 
 // Mocks
 jest.mock('@/hooks/useIsBlocked', () => ({
