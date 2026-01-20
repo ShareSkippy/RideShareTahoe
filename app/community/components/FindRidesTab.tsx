@@ -238,7 +238,6 @@ export function RidesTab({
     );
   };
 
-  // ✅ FIX: only render the section ONCE (no duplicate grid/pagination/modal below)
   return (
     <div className="space-y-12">
       <section>{renderRidesSection()}</section>
