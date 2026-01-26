@@ -19,7 +19,7 @@ export async function processScheduledEmails(): Promise<{
   processed: number;
   errors: Array<{ id: number; error: string }>;
 }> {
-  const supabase = await createClient();
+  const supabase = await createClient('service_role');
   const errors: Array<{ id: number; error: string }> = [];
   let processed = 0;
 
@@ -69,18 +69,19 @@ export async function processScheduledEmails(): Promise<{
           continue;
         }
 
-        // Get user email
-        const { data: user, error: userError } = await supabase
-          .from('profiles')
-          .select('email, first_name')
-          .eq('id', scheduledEmail.user_id)
-          .single();
+        // Get user email from user_private_info (parallel queries for efficiency)
+        const [{ data: profile }, { data: privateInfo }] = await Promise.all([
+          supabase.from('profiles').select('first_name').eq('id', scheduledEmail.user_id).single(),
+          supabase.from('user_private_info').select('email').eq('id', scheduledEmail.user_id).single(),
+        ]);
 
-        if (userError || !user) {
-          console.error(`User not found for scheduled email ${scheduledEmail.id}:`, userError);
-          errors.push({ id: scheduledEmail.id, error: 'User not found' });
+        if (!profile || !privateInfo?.email) {
+          console.error(`User not found for scheduled email ${scheduledEmail.id}`);
+          errors.push({ id: scheduledEmail.id, error: 'User not found or missing email' });
           continue;
         }
+
+        const user = { first_name: profile.first_name, email: privateInfo.email };
 
         // Send the email
         await sendEmail({
@@ -129,7 +130,7 @@ export async function scheduleMeetingReminder({
   const reminderTime = new Date(startsAt);
   reminderTime.setDate(reminderTime.getDate() - 1); // 1 day before
 
-  const supabase = await createClient();
+  const supabase = await createClient('service_role');
   const { error } = await supabase.from('scheduled_emails').insert({
     user_id: userId,
     email_type: 'meeting_reminder',
@@ -156,7 +157,7 @@ export async function scheduleNurtureEmail(userId: string): Promise<void> {
   const nurtureTime = new Date();
   nurtureTime.setDate(nurtureTime.getDate() + 3);
 
-  const supabase = await createClient();
+  const supabase = await createClient('service_role');
   const { error } = await supabase.from('scheduled_emails').insert({
     user_id: userId,
     email_type: 'nurture_day3',
@@ -175,7 +176,7 @@ export async function scheduleNurtureEmail(userId: string): Promise<void> {
  * Get scheduled emails for a user
  */
 export async function getUserScheduledEmails(userId: string): Promise<ScheduledEmail[]> {
-  const supabase = await createClient();
+  const supabase = await createClient('service_role');
   const { data, error } = await supabase
     .from('scheduled_emails')
     .select('*')
@@ -193,7 +194,7 @@ export async function getUserScheduledEmails(userId: string): Promise<ScheduledE
  * Cancel scheduled emails for a user
  */
 export async function cancelUserScheduledEmails(userId: string, emailType?: string): Promise<void> {
-  const supabase = await createClient();
+  const supabase = await createClient('service_role');
 
   let query = supabase.from('scheduled_emails').delete().eq('user_id', userId);
 

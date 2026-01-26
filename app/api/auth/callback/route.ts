@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/libs/supabase/server';
 import { type Session, type User, type UserMetadata } from '@supabase/supabase-js';
+import { getAppUrl, sanitizeForLog } from '@/libs/email';
 
 // Define types locally for safety (mirroring database schema)
 interface Profile {
@@ -39,10 +40,10 @@ function determineRedirectPath(
   const hasLocation: boolean = profile.display_lat !== null && profile.display_lng !== null;
 
   console.log('📊 Profile completeness check:');
-  console.log('   ✓ Role:', hasRole ? '✅ Complete' : '❌ Missing');
-  console.log('   ✓ Phone:', hasPhonePrivate ? '✅ Complete' : '❌ Missing');
+  console.log('   ✓ Role:', hasRole ? '✅ Complete' : '❌ Missing');
+  console.log('   ✓ Phone:', hasPhonePrivate ? '✅ Complete' : '❌ Missing');
   console.log(
-    '   ✓ Location:',
+    '   ✓ Location:',
     hasLocation ? '✅ Verified (display_lat/lng present)' : '❌ Missing'
   );
 
@@ -54,6 +55,24 @@ function determineRedirectPath(
     console.log('📝 PROFILE INCOMPLETE → Redirecting to /profile/edit');
     return `${finalRedirectBaseUrl}/profile/edit?${cacheBust}`;
   }
+}
+
+/**
+ * Check if welcome email was already sent to this user (idempotent check).
+ * Uses email_events table instead of time-based checks for reliability.
+ */
+async function hasWelcomeEmailBeenSent(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<boolean> {
+  const { data: welcomeEmailRecord } = await supabase
+    .from('email_events')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('email_type', 'welcome')
+    .maybeSingle();
+
+  return !!welcomeEmailRecord;
 }
 
 /**
@@ -99,9 +118,39 @@ async function processCodeExchangeAndProfileUpdate(
     .eq('id', user.id)
     .single();
 
-  // 2. New User Check: based on whether a profile row already existed
-  const isNewUser: boolean = !existingProfile;
-  console.log(isNewUser ? '🆕 NEW USER DETECTED (no existing profile)' : '👤 EXISTING USER');
+  // 2. New User Check: Use idempotent database check instead of profile existence
+  // (Profile may be auto-created by database trigger, so we check email_events instead)
+  const welcomeAlreadySent = await hasWelcomeEmailBeenSent(supabase, user.id);
+  const isNewUser: boolean = !welcomeAlreadySent;
+  console.log(
+    isNewUser
+      ? `🆕 NEW USER DETECTED (no welcome email sent yet) - ${sanitizeForLog(user.id)}`
+      : `👤 EXISTING USER - ${sanitizeForLog(user.id)}`
+  );
+
+  // Upsert user's email into user_private_info (required for email sending)
+  // Uses service_role to bypass RLS policies on this protected table
+  console.log(`[Auth] User email from OAuth: ${user.email || 'NOT AVAILABLE'}`);
+  if (user.email) {
+    try {
+      const supabaseAdmin = await createClient('service_role');
+      const { error: privateInfoError } = await supabaseAdmin
+        .from('user_private_info')
+        .upsert(
+          { id: user.id, email: user.email },
+          { onConflict: 'id' }
+        );
+      if (privateInfoError) {
+        console.error('❌ Failed to upsert user_private_info:', JSON.stringify(privateInfoError));
+      } else {
+        console.log(`✅ User email stored in user_private_info for ${sanitizeForLog(user.id)}`);
+      }
+    } catch (err) {
+      console.error('❌ Exception upserting user_private_info:', err);
+    }
+  } else {
+    console.error('❌ No email available from OAuth user object');
+  }
 
   // Fetch private info for checking completeness (phone)
   const { data: privateInfo } = await supabase
@@ -141,16 +190,29 @@ async function processCodeExchangeAndProfileUpdate(
     return NextResponse.redirect(new URL('/login?error=profile_update_failed', requestUrl.origin));
   }
 
-  // 5. Welcome Email
+  // 5. Welcome Email (only for new users who haven't received one yet)
   if (isNewUser) {
     try {
-      await fetch(`/api/emails/send-welcome`, {
+      const appUrl = getAppUrl();
+      const emailResponse = await fetch(`${appUrl}/api/emails/send-welcome`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-internal-api-key': process.env.INTERNAL_API_KEY || '',
+        },
         body: JSON.stringify({ userId: user.id }),
       });
-      console.log('✅ Welcome email queued');
+
+      if (!emailResponse.ok) {
+        const errorText = await emailResponse.text();
+        console.error(
+          `❌ Welcome email API error: ${emailResponse.status} - ${sanitizeForLog(errorText)}`
+        );
+      } else {
+        console.log(`✅ Welcome email sent for user ${sanitizeForLog(user.id)}`);
+      }
     } catch (emailError) {
+      // Don't block the auth flow if email fails - log and continue
       console.error('❌ Error sending welcome email:', emailError);
     }
   }
@@ -166,6 +228,7 @@ async function processCodeExchangeAndProfileUpdate(
   // Use NextResponse.redirect() which sets the status and Location header.
   return NextResponse.redirect(redirectPath);
 }
+
 /**
  * Handles the OAuth callback from the authentication provider.
  * Exchanges the code for a session and sets up the user profile.
