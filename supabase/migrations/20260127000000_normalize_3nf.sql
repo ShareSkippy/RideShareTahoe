@@ -90,6 +90,13 @@ CREATE INDEX IF NOT EXISTS idx_rides_vehicle_id ON rides(vehicle_id);
 CREATE INDEX IF NOT EXISTS idx_rides_poster_id ON rides(poster_id);
 
 
+-- Backfill new `available_seats` column from legacy `total_seats` for existing rows
+UPDATE rides
+SET available_seats = total_seats
+WHERE available_seats IS NULL
+  AND total_seats IS NOT NULL;
+
+
 
 -- 5. TRIGGERS
 -- Assumes update_updated_at_column() exists in the schema

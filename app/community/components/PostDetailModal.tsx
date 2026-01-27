@@ -40,7 +40,9 @@ function getMetaTags(post: RidePostType): MetaTag[] {
             label: 'Vehicle',
             value: `${post.vehicle.color} ${post.vehicle.year} ${post.vehicle.make} ${post.vehicle.model}`,
           }
-        : null,
+        : post.car_type
+          ? { label: 'Vehicle', value: post.car_type }
+          : null,
       post.driving_arrangement ? { label: 'Pickup', value: post.driving_arrangement } : null,
       post.music_preference ? { label: 'Music', value: post.music_preference } : null,
       post.conversation_preference
@@ -109,7 +111,7 @@ export default function PostDetailModal({
   const hasReturnInfo = isCombinedRoundTrip && !!returnTimeLabel;
   const metaTags = getMetaTags(post);
 
-  const seatsAvailable = post.available_seats ?? 0;
+  const seatsAvailable = post.available_seats ?? post.total_seats ?? 0;
   const showBookingButton = !isOwner && isDriver && post.status === 'active' && seatsAvailable > 0;
 
   return (
