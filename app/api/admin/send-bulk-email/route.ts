@@ -65,6 +65,15 @@ const batchSizeSchema = z.preprocess((val) => {
   return undefined;
 }, z.number().int().min(1).max(100).default(50));
 
+// Full request body schema for the bulk email endpoint
+const bodySchema = z.object({
+  subject: z.string().min(1),
+  htmlContent: z.string().min(1),
+  textContent: z.string().optional(),
+  batchSize: batchSizeSchema,
+  delayMs: delaySchema.default(1000),
+});
+
 /**
  * Sends bulk emails to users.
  * Supports batch processing, rate limiting, and email personalization.
@@ -108,38 +117,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const rawBody = await request.json();
+    const parsedBody = bodySchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        { error: 'Invalid request', details: parsedBody.error.format() },
+        { status: 400 }
+      );
+    }
+
     const {
       subject,
       htmlContent,
       textContent,
-      batchSize = 50,
-      delayMs = 1000,
-    } = await request.json();
-
-    const delayParsed = delaySchema.safeParse(delayMs);
-    if (!delayParsed.success) {
-      return NextResponse.json(
-        { error: 'Delay must be between 0 and 10000 milliseconds' },
-        { status: 400 }
-      );
-    }
-    const safeDelayMs = delayParsed.data;
-
-    if (!subject || !htmlContent) {
-      return NextResponse.json(
-        {
-          error: 'Subject and HTML content are required',
-        },
-        { status: 400 }
-      );
-    }
-
-    // Validate batch size using zod
-    const batchParsed = batchSizeSchema.safeParse(batchSize);
-    if (!batchParsed.success) {
-      return NextResponse.json({ error: 'Batch size must be between 1 and 100' }, { status: 400 });
-    }
-    const safeBatchSize = batchParsed.data;
+      batchSize: safeBatchSize,
+      delayMs: safeDelayMs,
+    } = parsedBody.data;
 
     // Get all users with email addresses (email is in user_private_info)
     const { data: users, error: usersError } = await supabase
@@ -177,17 +170,6 @@ export async function POST(request: NextRequest) {
       })
       .filter((user): user is NonNullable<typeof user> => user !== null);
 
-    if (usersWithEmails.length === 0) {
-      return NextResponse.json(
-        { error: 'No users with email addresses found' },
-        {
-          status: 404,
-        }
-      );
-    }
-
-    console.log(`Found ${usersWithEmails.length} users to email`);
-
     // Process users in batches
     const results: BulkEmailResult = {
       totalUsers: usersWithEmails.length,
@@ -206,12 +188,10 @@ export async function POST(request: NextRequest) {
       const batchPromises = batch.map(async (user) => {
         const maxRetries = 2;
         let lastError: Error | null = null;
-        // Email was already extracted during the usersWithEmails transformation
         const userEmail = user.email;
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
           try {
-            // Personalize email content
             const personalizedHtml = htmlContent
               .replaceAll('{{first_name}}', user.first_name || '')
               .replaceAll('{{last_name}}', user.last_name || '')
@@ -236,14 +216,12 @@ export async function POST(request: NextRequest) {
             lastError = error instanceof Error ? error : new Error(String(error));
             console.error(`Attempt ${attempt + 1} failed for ${userEmail}:`, lastError.message);
 
-            // If this is not the last attempt, wait before retrying
             if (attempt < maxRetries) {
               await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
             }
           }
         }
 
-        // All retries failed
         console.error(`All retries failed for ${userEmail}:`, lastError?.message);
         return {
           success: false,
