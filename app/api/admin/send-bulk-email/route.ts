@@ -83,6 +83,8 @@ export async function POST(request: NextRequest) {
       delayMs = 1000,
     } = await request.json();
 
+    const safeDelayMs = Number(delayMs);
+
     if (!subject || !htmlContent) {
       return NextResponse.json(
         {
@@ -102,7 +104,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (delayMs < 0 || delayMs > 10000) {
+    if (!Number.isFinite(safeDelayMs) || safeDelayMs < 0 || safeDelayMs > 10000) {
       return NextResponse.json(
         { error: 'Delay must be between 0 and 10000 milliseconds' },
         { status: 400 }
@@ -227,7 +229,7 @@ export async function POST(request: NextRequest) {
 
       // Add delay between batches to respect rate limits
       if (i + batchSize < usersWithEmails.length) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        await new Promise((resolve) => setTimeout(resolve, safeDelayMs));
       }
     }
 
