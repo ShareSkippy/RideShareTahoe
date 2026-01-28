@@ -9,36 +9,23 @@ interface Profile {
   first_name: string | null;
   last_name: string | null;
   profile_photo_url: string | null;
-  role: string | null;
   display_lat: number | null;
   display_lng: number | null;
-  // Social fields
-  facebook_url?: string | null;
-  instagram_url?: string | null;
-  linkedin_url?: string | null;
-  airbnb_url?: string | null;
-  other_social_url?: string | null;
 }
 
 /**
  * Evaluates user state to determine the appropriate post-authentication destination.
  * * @param profile - The public profile record from the database.
- * @param isNewUser - Boolean indicating if the user has no record of a welcome email.
  * @param hasSocial - Boolean indicating if the user has added at least one social link.
  * @returns A relative URL path.
  */
-export function determineRedirectStrategy(
-  profile: Profile,
-  isNewUser: boolean,
-  hasSocial: boolean
-): string {
-  if (isNewUser) return '/profile/edit';
-
-  const hasRole = !!profile.role?.trim();
+export function determineRedirectStrategy(profile: Profile, hasSocial: boolean): string {
   const hasLocation = profile.display_lat !== null && profile.display_lng !== null;
-  const isComplete = hasRole && hasSocial && hasLocation;
+  const isComplete = hasSocial && hasLocation;
 
-  return isComplete ? '/community' : '/profile/edit';
+  if (isComplete) return '/community';
+
+  return '/profile/edit';
 }
 
 /**
@@ -66,8 +53,10 @@ export function prepareProfileUpsert(
  * Aggregates user data from multiple tables to build the context for routing and synchronization.
  */
 async function getAuthProcessingContext(supabase: SupabaseClient, userId: string) {
-  const [profileRes, welcomeRecordRes] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', userId).single(),
+  // Fetch public profile and any linked socials (socials may live in separate table)
+  const [profileRes, socialsRes, welcomeRecordRes] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+    supabase.from('profile_socials').select('*').eq('user_id', userId).maybeSingle(),
     supabase
       .from('email_events')
       .select('id')
@@ -77,14 +66,22 @@ async function getAuthProcessingContext(supabase: SupabaseClient, userId: string
   ]);
 
   const profile = profileRes.data as Profile | null;
+  const socials = socialsRes.data as {
+    facebook_url?: string | null;
+    instagram_url?: string | null;
+    linkedin_url?: string | null;
+    airbnb_url?: string | null;
+    other_social_url?: string | null;
+  } | null;
 
-  // Check if any social link is present locally since we fetched the full profile
+  // Check if any social link is present either directly on the profile
+  // or in the separate `profile_socials` record.
   const hasSocial = !!(
-    profile?.facebook_url?.trim() ||
-    profile?.instagram_url?.trim() ||
-    profile?.linkedin_url?.trim() ||
-    profile?.airbnb_url?.trim() ||
-    profile?.other_social_url?.trim()
+    socials?.facebook_url?.trim() ||
+    socials?.instagram_url?.trim() ||
+    socials?.linkedin_url?.trim() ||
+    socials?.airbnb_url?.trim() ||
+    socials?.other_social_url?.trim()
   );
 
   return {
@@ -158,7 +155,7 @@ async function processCodeExchangeAndProfileUpdate(
 
   after(() => executeBackgroundTasks(user.id, user.email, context.isNewUser));
 
-  const path = determineRedirectStrategy(updatedProfile, context.isNewUser, context.hasSocial);
+  const path = determineRedirectStrategy(updatedProfile, context.hasSocial);
   const redirectUrl = new URL(path, origin);
   redirectUrl.searchParams.set('_t', Date.now().toString());
 
