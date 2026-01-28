@@ -48,23 +48,39 @@ export default function CreateRidePage() {
       // Generate a client-side UUID for grouping round trips if needed
       const round_trip_group_id = data.is_round_trip ? crypto.randomUUID() : null;
 
+      // Lookup vehicle details for dual-write compatibility
+      const selectedVehicle = vehicles.find((v) => v.id === data.vehicle_id);
+      const car_type = selectedVehicle
+        ? `${selectedVehicle.year} ${selectedVehicle.make} ${selectedVehicle.model} (${selectedVehicle.color})`
+        : null;
+      const has_awd = selectedVehicle
+        ? selectedVehicle.drivetrain === 'AWD' || selectedVehicle.drivetrain === '4WD'
+        : false;
+
       const commonData = {
         poster_id: user.id,
         posting_type: data.posting_type,
+        status: 'active',
         title: data.title,
         start_location: data.start_location,
         end_location: data.end_location,
         price_per_seat: data.price_per_seat,
-        total_seats: data.total_seats,
-        available_seats: data.posting_type === 'driver' ? data.total_seats : null,
+        // New columns
+        available_seats: data.posting_type === 'driver' ? (data.available_seats ?? 1) : null,
+        vehicle_id: data.vehicle_id,
+        // Legacy columns (Dual-write)
+        total_seats: data.posting_type === 'driver' ? (data.available_seats ?? 1) : null,
+        car_type,
+        has_awd,
+
         description: data.description,
         special_instructions: data.special_instructions,
-        has_awd: data.has_awd,
-        car_type: data.car_type,
-        status: 'active',
         is_round_trip: data.is_round_trip,
         round_trip_group_id,
         is_recurring: false, // Default for now
+        // Privacy: Mapping exact addresses
+        start_address_street: data.start_location,
+        end_address_street: data.end_location,
       };
 
       const ridesToInsert = [];
@@ -75,6 +91,9 @@ export default function CreateRidePage() {
         departure_date: data.departure_date,
         departure_time: data.departure_time,
         trip_direction: data.is_round_trip ? 'departure' : null,
+        // Ensure return metadata is present on the departure leg
+        return_date: data.return_date || null,
+        return_time: data.return_time || null,
       });
 
       // 2. Return Trip (if applicable)
@@ -83,9 +102,15 @@ export default function CreateRidePage() {
           ...commonData,
           start_location: data.end_location, // Swap locations
           end_location: data.start_location,
+          // Swap addresses for return leg
+          start_address_street: data.end_location,
+          end_address_street: data.start_location,
           departure_date: data.return_date,
           departure_time: data.return_time,
           trip_direction: 'return',
+          // Return info for the return leg refers to the original departure
+          return_date: data.departure_date || null,
+          return_time: data.departure_time || null,
         });
       }
 
@@ -139,10 +164,10 @@ export default function CreateRidePage() {
               departure_date: '',
               departure_time: '',
               price_per_seat: 0,
-              total_seats: 1,
+              available_seats: 1,
               description: '',
               special_instructions: '',
-              has_awd: false,
+              vehicle_id: '',
             }}
             onSave={handleSave}
             onCancel={() => router.back()}
