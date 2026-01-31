@@ -26,12 +26,11 @@ export default function InviteToRideModal({
   const [loading, setLoading] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [selectedRideId, setSelectedRideId] = useState<string | null>(null);
-
+  const supabase = createClient()
   useEffect(() => {
     if (isOpen && user) {
       const loadRides = async () => {
         setLoading(true);
-        const supabase = createClient();
         try {
           const rides = await fetchMyRides(supabase, user);
           // Filter for active driver rides with available seats
@@ -51,8 +50,7 @@ export default function InviteToRideModal({
       };
       loadRides();
     }
-  }, [isOpen, user]);
-
+  }, [isOpen, user, supabase]);
   const handleInvite = async () => {
     if (!selectedRideId) return;
 
