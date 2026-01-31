@@ -35,7 +35,14 @@ interface MetaTag {
 function getMetaTags(post: RidePostType): MetaTag[] {
   if (post.posting_type === 'driver') {
     return [
-      post.car_type ? { label: 'Vehicle', value: post.car_type } : null,
+      post.vehicle
+        ? {
+            label: 'Vehicle',
+            value: `${post.vehicle.color} ${post.vehicle.year} ${post.vehicle.make} ${post.vehicle.model}`,
+          }
+        : post.car_type
+          ? { label: 'Vehicle', value: post.car_type }
+          : null,
       post.driving_arrangement ? { label: 'Pickup', value: post.driving_arrangement } : null,
       post.music_preference ? { label: 'Music', value: post.music_preference } : null,
       post.conversation_preference
